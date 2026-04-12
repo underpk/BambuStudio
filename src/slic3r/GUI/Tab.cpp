@@ -2965,20 +2965,14 @@ void TabPrint::build()
         optgroup->append_single_option_line(option);
         optgroup->m_on_change = [this, optgroup](const t_config_option_key &opt_key, const boost::any &value) { validate_custom_note_cb(this, optgroup, opt_key, value); };
 
-#if 0
-    //page = add_options_page(L("Dependencies"), "advanced.png");
-    //    optgroup = page->new_optgroup(L("Profile dependencies"));
+        optgroup = page->new_optgroup(L("Profile dependencies"));
+        create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) {
+            return compatible_widget_create(parent, m_compatible_printers);
+        });
 
-    //    create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) {
-    //        return compatible_widget_create(parent, m_compatible_printers);
-    //    });
-    //
-    //    option = optgroup->get_option("compatible_printers_condition");
-    //    option.opt.full_width = true;
-    //    optgroup->append_single_option_line(option);
-
-    //    build_preset_description_line(optgroup.get());
-#endif
+        option = optgroup->get_option("compatible_printers_condition");
+        option.opt.full_width = true;
+        optgroup->append_single_option_line(option);
 }
 
 // Reload current config (aka presets->edited_preset->config) into the UI fields.
@@ -4177,28 +4171,23 @@ void TabFilament::build()
         // optgroup->append_single_option_line("filament_flush_volumetric_speed", "", 0);
         optgroup->append_single_option_line("long_retractions_when_ec", "" , 0);
         optgroup->append_single_option_line("retraction_distances_when_ec", "" , 0);
-        //BBS
-#if 0
-    //page = add_options_page(L("Dependencies"), "advanced");
-    //    optgroup = page->new_optgroup(L("Profile dependencies"));
-    //    create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) {
-    //        return compatible_widget_create(parent, m_compatible_printers);
-    //    });
 
-    //    option = optgroup->get_option("compatible_printers_condition");
-    //    option.opt.full_width = true;
-    //    optgroup->append_single_option_line(option);
+        optgroup = page->new_optgroup(L("Profile dependencies"));
+        create_line_with_widget(optgroup.get(), "compatible_printers", "", [this](wxWindow* parent) {
+            return compatible_widget_create(parent, m_compatible_printers);
+        });
 
-    //    create_line_with_widget(optgroup.get(), "compatible_prints", "", [this](wxWindow* parent) {
-    //        return compatible_widget_create(parent, m_compatible_prints);
-    //    });
+        option = optgroup->get_option("compatible_printers_condition");
+        option.opt.full_width = true;
+        optgroup->append_single_option_line(option);
 
-    //    option = optgroup->get_option("compatible_prints_condition");
-    //    option.opt.full_width = true;
-    //    optgroup->append_single_option_line(option);
+        create_line_with_widget(optgroup.get(), "compatible_prints", "", [this](wxWindow* parent) {
+            return compatible_widget_create(parent, m_compatible_prints);
+        });
 
-    //    build_preset_description_line(optgroup.get());
-#endif
+        option = optgroup->get_option("compatible_prints_condition");
+        option.opt.full_width = true;
+        optgroup->append_single_option_line(option);
 }
 
 // Reload current config (aka presets->edited_preset->config) into the UI fields.
