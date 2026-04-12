@@ -944,6 +944,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat, bottom_shell_thickness))
     ((ConfigOptionFloat, bridge_angle))
     ((ConfigOptionFloat, bridge_flow))
+    ((ConfigOptionPercent, bridge_density))
+    ((ConfigOptionPercent, internal_bridge_density))
     ((ConfigOptionFloatsNullable, overhang_totally_speed))
     ((ConfigOptionFloatsNullable, bridge_speed))
     ((ConfigOptionEnum<EnsureVerticalThicknessLevel>, ensure_vertical_shell_thickness))

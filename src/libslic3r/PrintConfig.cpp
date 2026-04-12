@@ -1136,6 +1136,31 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(1));
 
+    def = this->add("bridge_density", coPercent);
+    def->label = L("External bridge density");
+    def->category = L("Quality");
+    def->tooltip = L("Controls the density of external bridge lines. 100% is solid.\n\n"
+                     "Lower density improves cooling (more airflow around extruded lines) "
+                     "which can help bridge reliability. Minimum is 10%.\n\n"
+                     "Higher density (over 100%) creates overlapping lines for smoother surfaces. Maximum is 120%.");
+    def->sidetext = L("%");
+    def->min = 10;
+    def->max = 120;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("internal_bridge_density", coPercent);
+    def->label = L("Internal bridge density");
+    def->category = L("Quality");
+    def->tooltip = L("Controls the density of internal bridge lines (bridges over sparse infill). 100% is solid.\n\n"
+                     "Lower density can reduce top surface pillowing and improve internal bridge reliability "
+                     "by allowing more airflow for cooling.");
+    def->sidetext = L("%");
+    def->min = 10;
+    def->max = 100;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(100));
+
     def = this->add("top_solid_infill_flow_ratio", coFloats);
     def->label = L("Top surface flow ratio");
     def->gui_type = ConfigOptionDef::GUIType::multi_variant;
