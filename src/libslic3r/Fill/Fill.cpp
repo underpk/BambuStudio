@@ -695,6 +695,19 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         // apply half spacing using this flow's own spacing and generate infill
         FillParams params;
         params.density 		     = float(0.01 * surface_fill.params.density);
+
+        // Bridge density overrides (from OrcaSlicer)
+        if (surface_fill.params.bridge && surface_fill.surface.is_external() && surface_fill.params.density > 99.0) {
+            // External bridge density
+            const PrintRegionConfig &region_config = m_regions[surface_fill.region_id]->region().config();
+            params.density = float(region_config.bridge_density.get_abs_value(1.0));
+        }
+        if (surface_fill.surface.surface_type == stInternalBridge) {
+            // Internal bridge density
+            const PrintRegionConfig &region_config = m_regions[surface_fill.region_id]->region().config();
+            params.density = float(region_config.internal_bridge_density.get_abs_value(1.0));
+        }
+
 		params.multiline        = surface_fill.params.multiline;
         params.pattern           = surface_fill.params.pattern;
 		params.dont_adjust		 = false; //  surface_fill.params.dont_adjust;
