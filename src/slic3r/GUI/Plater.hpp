@@ -196,7 +196,7 @@ public:
     void load_ams_list(MachineObject* obj);
     std::map<int, DynamicPrintConfig> build_filament_ams_list(MachineObject* obj);
     void sync_ams_list(bool is_from_big_sync_btn = false);
-    bool sync_extruder_list();
+    bool sync_extruder_list(bool force_printer_select = false);
     bool need_auto_sync_extruder_list_after_connect_priner(const MachineObject* obj);
     void update_sync_status(const MachineObject* obj);
     int get_sidebar_pos_right_x();
@@ -230,7 +230,7 @@ public:
 	bool                    show_export_removable(bool show) const;
 	bool                    get_eject_shown() const;
     bool                    is_multifilament();
-    void                    deal_btn_sync();
+    void                    deal_btn_sync(bool force_printer_select = false);
     void                    pop_sync_nozzle_and_ams_dialog();
     void                    pop_finsish_sync_ams_dialog();
     void                    update_mode();
