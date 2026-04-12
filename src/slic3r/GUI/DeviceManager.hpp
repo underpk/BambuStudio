@@ -209,6 +209,10 @@ public:
     void record_user_access_dev_ip();
     void erase_user_access_dev_ip();
 
+    /*local device nickname - for LAN devices*/
+    void set_local_dev_nickname(std::string name);
+    std::string get_local_dev_nickname() const;
+
     //PRINTER_TYPE printer_type = PRINTER_3DPrinter_UKNOWN;
     std::string printer_type;       /* model_id */
     std::string   get_show_printer_type() const;

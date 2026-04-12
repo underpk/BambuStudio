@@ -106,6 +106,12 @@ public:
     MachineObject* insert_local_device(std::string dev_name, std::string dev_id, std::string dev_ip,
         std::string connection_type, std::string bind_state, std::string version,
         std::string access_code, std::string printer_type);
+
+    // LAN device persistence
+    void save_lan_device_info(const std::string& dev_id, const std::string& dev_name,
+        const std::string& dev_ip, const std::string& printer_type);
+    void load_saved_lan_devices();
+    void remove_saved_lan_device(const std::string& dev_id);
 };
 
 class DeviceManagerRefresher : public wxObject

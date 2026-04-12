@@ -8172,6 +8172,31 @@ void TryLoadLastMachine::InnerLoad(NetworkAgent* agent, DeviceManager* dev)
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": mqtt or list not ready";
         }
     }
+
+    // Auto-connect all saved LAN printers (not just the last selected one)
+    if (is_mqtt_ok) {
+        AppConfig* config = wxGetApp().app_config;
+        if (config && config->has_section("saved_lan_devices")) {
+            auto saved = config->get_section("saved_lan_devices");
+            for (const auto& entry : saved) {
+                const std::string& sid = entry.first;
+                if (sid == last_select_machine) continue; // already handled above
+
+                auto encoded_ip = config->get("user_access_dev_ip", sid);
+                auto slicer_uuid = config->get("slicer_uuid");
+                auto ip = BBLCrossTalk::Decode_DevIp(encoded_ip, slicer_uuid);
+                auto code = config->get("user_access_code", sid);
+
+                if (!ip.empty() && !code.empty()) {
+                    auto existing = dev->get_local_machine(sid);
+                    if (!existing || !existing->is_online()) {
+                        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": auto-connect saved LAN device " << BBLCrossTalk::Crosstalk_DevId(sid);
+                        boost::thread([ip, code, sid]() { sLocalBindFunc(ip, code, sid); }).detach();
+                    }
+                }
+            }
+        }
+    }
 }
 
 } // GUI

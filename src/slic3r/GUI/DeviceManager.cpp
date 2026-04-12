@@ -488,6 +488,27 @@ void MachineObject::erase_user_access_dev_ip()
     }
 }
 
+void MachineObject::set_local_dev_nickname(std::string name)
+{
+    AppConfig* config = GUI::wxGetApp().app_config;
+    if (!config) return;
+
+    if (name.empty()) {
+        config->erase("device_nickname", get_dev_id());
+    } else {
+        config->set_str("device_nickname", get_dev_id(), name);
+        set_dev_name(name);
+    }
+    config->save();
+}
+
+std::string MachineObject::get_local_dev_nickname() const
+{
+    AppConfig* config = GUI::wxGetApp().app_config;
+    if (!config) return "";
+    return config->get("device_nickname", get_dev_id());
+}
+
 std::string MachineObject::get_show_printer_type() const
 {
     std::string printer_type = this->printer_type;

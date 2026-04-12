@@ -63,7 +63,10 @@ namespace Slic3r
         m_enable_mutil_machine = enable;
     }
 
-    void DeviceManager::start_refresher() { m_refresher->Start(); }
+    void DeviceManager::start_refresher() {
+        try { load_saved_lan_devices(); } catch (...) {}
+        m_refresher->Start();
+    }
     void DeviceManager::stop_refresher() { m_refresher->Stop(); }
 
 
@@ -238,7 +241,12 @@ namespace Slic3r
                     obj->bind_state = "free";
 
                 obj->m_is_online = true;
-                obj->set_dev_name(dev_name);
+                // Preserve user-assigned nickname over SSDP-discovered name
+                std::string nickname = obj->get_local_dev_nickname();
+                if (nickname.empty())
+                    obj->set_dev_name(dev_name);
+                else
+                    obj->set_dev_name(nickname);
                 /* if (!obj->dev_ip.empty()) {
                 Slic3r::GUI::wxGetApp().app_config->set_str("ip_address", obj->dev_id, obj->dev_ip);
                 Slic3r::GUI::wxGetApp().app_config->save();
@@ -256,11 +264,15 @@ namespace Slic3r
                 obj->bind_ssdp_version = ssdp_version;
                 obj->m_is_online = true;
 
-                //load access code
+                //load access code and nickname
                 AppConfig* config = Slic3r::GUI::wxGetApp().app_config;
                 if (config) {
-                    obj->set_access_code(Slic3r::GUI::wxGetApp().app_config->get("access_code", dev_id), false);
-                    obj->set_user_access_code(Slic3r::GUI::wxGetApp().app_config->get("user_access_code", dev_id), false);
+                    obj->set_access_code(config->get("access_code", dev_id), false);
+                    obj->set_user_access_code(config->get("user_access_code", dev_id), false);
+                    // Apply saved nickname if available
+                    std::string nickname = config->get("device_nickname", dev_id);
+                    if (!nickname.empty())
+                        obj->set_dev_name(nickname);
                 }
                 localMachineList.insert(std::make_pair(dev_id, obj));
 
@@ -315,7 +327,94 @@ namespace Slic3r
             localMachineList.insert(std::make_pair(dev_id, obj));
         }
 
+        // Save LAN device info for persistence
+        save_lan_device_info(dev_id, dev_name, dev_ip, obj->printer_type);
+
         return obj;
+    }
+
+    void DeviceManager::save_lan_device_info(const std::string& dev_id, const std::string& dev_name,
+        const std::string& dev_ip, const std::string& printer_type)
+    {
+        AppConfig* config = Slic3r::GUI::wxGetApp().app_config;
+        if (!config) return;
+
+        // Store as simple JSON: {"name":"...","ip":"...","type":"..."}
+        std::string json = "{\"name\":\"" + dev_name + "\",\"ip\":\"" + dev_ip + "\",\"type\":\"" + printer_type + "\"}";
+        config->set_str("saved_lan_devices", dev_id, json);
+        config->save();
+    }
+
+    void DeviceManager::load_saved_lan_devices()
+    {
+        AppConfig* config = Slic3r::GUI::wxGetApp().app_config;
+        if (!config || !config->has_section("saved_lan_devices")) return;
+
+        auto saved = config->get_section("saved_lan_devices");
+        for (const auto& entry : saved) {
+            const std::string& dev_id = entry.first;
+            const std::string& json = entry.second;
+
+            // Skip if already in localMachineList (SSDP found it)
+            if (localMachineList.find(dev_id) != localMachineList.end())
+                continue;
+
+            // Parse simple JSON
+            std::string dev_name, dev_ip, printer_type;
+            try {
+                // Simple parsing for {"name":"...","ip":"...","type":"..."}
+                auto extract = [&json](const std::string& key) -> std::string {
+                    std::string search = "\"" + key + "\":\"";
+                    auto pos = json.find(search);
+                    if (pos == std::string::npos) return "";
+                    pos += search.size();
+                    auto end = json.find("\"", pos);
+                    if (end == std::string::npos) return "";
+                    return json.substr(pos, end - pos);
+                };
+                dev_name = extract("name");
+                dev_ip = extract("ip");
+                printer_type = extract("type");
+            } catch (...) {
+                continue;
+            }
+
+            if (dev_name.empty() && dev_ip.empty()) continue;
+
+            // Create offline MachineObject
+            MachineObject* obj = new MachineObject(this, m_agent, dev_name, dev_id, dev_ip);
+            obj->printer_type = printer_type.empty() ? _parse_printer_type("C11") : printer_type;
+            obj->GetInfo()->SetConnectionType("lan");
+            obj->bind_state = "free";
+            obj->bind_sec_link = "secure";
+            obj->m_is_online = false;
+
+            // Load access codes
+            obj->set_access_code(config->get("access_code", dev_id), false);
+            obj->set_user_access_code(config->get("user_access_code", dev_id), false);
+
+            // Load nickname if available
+            std::string nickname = config->get("device_nickname", dev_id);
+            if (!nickname.empty()) {
+                obj->set_dev_name(nickname);
+            }
+
+            localMachineList.insert(std::make_pair(dev_id, obj));
+            BOOST_LOG_TRIVIAL(info) << "load_saved_lan_devices: restored " << dev_id << " (" << obj->get_dev_name() << ")";
+        }
+    }
+
+    void DeviceManager::remove_saved_lan_device(const std::string& dev_id)
+    {
+        AppConfig* config = Slic3r::GUI::wxGetApp().app_config;
+        if (!config) return;
+
+        config->erase("saved_lan_devices", dev_id);
+        config->erase("device_nickname", dev_id);
+        config->erase("access_code", dev_id);
+        config->erase("user_access_code", dev_id);
+        config->erase("user_access_dev_ip", dev_id);
+        config->save();
     }
 
     int DeviceManager::query_bind_status(std::string& msg)
@@ -616,7 +715,7 @@ namespace Slic3r
 
         for (auto it = localMachineList.begin(); it != localMachineList.end(); it++)
         {
-            if (it->second && it->second->has_access_right() && it->second->is_avaliable() && it->second->is_lan_mode_printer())
+            if (it->second && it->second->has_access_right() && it->second->is_lan_mode_printer())
             {
                 // remove redundant in userMachineList
                 if (result.find(it->first) == result.end())
@@ -653,6 +752,16 @@ namespace Slic3r
     void DeviceManager::modify_device_name(std::string dev_id, std::string dev_name)
     {
         BOOST_LOG_TRIVIAL(trace) << "modify_device_name";
+
+        // For LAN printers, save nickname locally instead of cloud API
+        MachineObject* obj = get_local_machine(dev_id);
+        if (obj && obj->is_lan_mode_printer()) {
+            obj->set_local_dev_nickname(dev_name);
+            save_lan_device_info(dev_id, dev_name, obj->dev_ip, obj->printer_type);
+            return;
+        }
+
+        // Cloud printer - use existing cloud API
         if (m_agent)
         {
             int result = m_agent->modify_printer_name(dev_id, dev_name);
