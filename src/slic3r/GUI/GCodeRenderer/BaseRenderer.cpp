@@ -2912,7 +2912,7 @@ namespace Slic3r
             {
                 if (view_type_items.empty()) { return; }
                 if (m_last_non_helio_option_item >= (int)view_type_items.size()) { return; }
-                EViewType cur_type = m_nozzle_nums > 1 ? EViewType::Summary : EViewType::ColorPrint;
+                EViewType cur_type = EViewType::FeatureType;  // Default to Line Type view
                 if (m_last_non_helio_option_item < 0) {//not set
                     m_view_type_sel = std::distance(view_type_items.begin(), std::find(view_type_items.begin(), view_type_items.end(), cur_type));
                     m_last_non_helio_option_item = m_view_type_sel;
