@@ -1782,9 +1782,41 @@ void ObjectDataViewModel::GetValue(wxVariant &variant, const wxDataViewItem &ite
     case colHeight:
         variant << node->m_variable_height_icon;
         break;
-	case colName:
-        variant << DataViewBitmapText(node->m_name, node->m_bmp);
-		break;
+	case colName: {
+        wxString display_name = node->m_name;
+
+        // For object nodes, show (index/total) if duplicates exist on same plate
+        if (node->m_type == itObject) {
+            int total = 0;
+            int index = 0;
+            bool found_self = false;
+
+            // Find the plate and count objects with same name
+            for (auto* plate_node : m_plates) {
+                if (plate_node->m_plate_idx != node->m_plate_idx) continue;
+
+                for (size_t i = 0; i < plate_node->GetChildren().GetCount(); i++) {
+                    auto* obj_node = plate_node->GetChildren().Item(i);
+                    if (obj_node->m_type == itObject && obj_node->m_name == node->m_name) {
+                        total++;
+                        if (!found_self) {
+                            index++;
+                            if (obj_node == node) {
+                                found_self = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (total > 1) {
+                display_name = wxString::Format("%s (%d/%d)", node->m_name, index, total);
+            }
+        }
+
+        variant << DataViewBitmapText(display_name, node->m_bmp);
+        break;
+    }
 	case colFilament:
 		variant << DataViewBitmapText(node->m_extruder, node->m_extruder_bmp);
 		break;
