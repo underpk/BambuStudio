@@ -3318,6 +3318,13 @@ void MainFrame::init_menubar_as_editor()
             m_topbar->GetCalibMenu()->AppendSubMenu(advance_menu, _L("More..."));
         }
 
+        // Ironing calibration
+        append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Ironing Cal"), _L("Ironing Calibration"),
+            [this](wxCommandEvent&) {
+                m_plater->calib_ironing();
+            }, "", nullptr,
+            [this]() { return m_plater->is_view3D_shown(); }, this);
+
         // help
         append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Tutorial"), _L("Calibration help"),
             [this](wxCommandEvent&) {
@@ -3447,6 +3454,18 @@ void MainFrame::init_menubar_as_editor()
         return m_plater->is_view3D_shown();
         ;
     });
+    // Ironing calibration
+    append_menu_item(
+        m_calib_menu, wxID_ANY, _L("Ironing Cal"), _L("Ironing Calibration"),
+        [this](wxCommandEvent &) {
+            m_plater->calib_ironing();
+        },
+        "", nullptr,
+        [this]() {
+            return m_plater->is_view3D_shown();
+        },
+        this);
+
     // help
     append_menu_item(
         m_calib_menu, wxID_ANY, _L("Tutorial"), _L("Calibration help"),

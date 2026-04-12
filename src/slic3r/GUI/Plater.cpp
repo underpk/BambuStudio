@@ -15701,6 +15701,47 @@ void Plater::calib_VFA(const Calib_Params &params)
     p->background_process.fff_print()->set_calib_params(params);
 }
 
+void Plater::calib_ironing()
+{
+    const auto calib_name = wxString::Format(L"Ironing Calibration");
+    if (new_project(false, false, calib_name) == wxID_CANCEL)
+        return;
+
+    wxGetApp().mainframe->select_tab(size_t(MainFrame::tp3DEditor));
+
+    // Load 3MF model geometry only
+    add_model(false, (boost::filesystem::path(Slic3r::resources_dir())
+        / "calib" / "ironing" / "Ironing_best_settings_v2.3mf").string());
+
+    // Ironing settings grid: 5 rows (flow %) x 5 columns (speed mm/s)
+    // Flow: 5%, 10%, 15%, 20%, 25%
+    // Speed: 20, 30, 60, 50, 40 mm/s (order matches 3MF model labels)
+    const int flows[] = {5, 10, 15, 20, 25};
+    const int speeds[] = {20, 30, 60, 50, 40};
+
+    // Set per-volume ironing settings for each object
+    int volume_idx = 0;
+    for (auto obj : model().objects) {
+        for (auto volume : obj->volumes) {
+            if (volume_idx == 0) {
+                // First volume - no ironing (it's the label/base)
+                volume->config.set_key_value("ironing_type", new ConfigOptionEnum<IroningType>(IroningType::NoIroning));
+            } else {
+                int sample_idx = volume_idx - 1;
+                if (sample_idx < 25) {
+                    int row = sample_idx / 5;  // 0-4 for flows 5%-25%
+                    int col = sample_idx % 5;  // 0-4 for speeds
+
+                    volume->config.set_key_value("ironing_type", new ConfigOptionEnum<IroningType>(IroningType::TopSurfaces));
+                    volume->config.set_key_value("ironing_flow", new ConfigOptionPercent(flows[row]));
+                    volume->config.set_key_value("ironing_speed", new ConfigOptionFloat(speeds[col]));
+                }
+            }
+            volume_idx++;
+        }
+    }
+}
+
 void Plater::import_sl1_archive()
 {
     if (!p->m_ui_jobs.is_any_running())
