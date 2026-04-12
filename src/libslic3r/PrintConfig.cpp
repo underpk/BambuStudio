@@ -302,6 +302,7 @@ CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportType)
 static t_config_enum_values s_keys_map_SeamPosition {
     { "nearest",        spNearest },
     { "aligned",        spAligned },
+    { "aligned_back",   spAlignedBack },
     { "back",           spRear },
     { "random",         spRandom },
 };
@@ -4316,14 +4317,21 @@ void PrintConfigDef::init_fff_params()
     def = this->add("seam_position", coEnum);
     def->label = L("Seam position");
     def->category = L("Quality");
-    def->tooltip = L("The start position to print each part of outer wall");
+    def->tooltip = L("The start position to print each part of outer wall.\n"
+                     "Nearest: Closest to the previous seam point.\n"
+                     "Aligned: Find optimal hidden location while aligning vertically.\n"
+                     "Aligned Back: Like Aligned but prioritizes placing seams away from the front of the model.\n"
+                     "Back: Always place seam at the back (max Y position).\n"
+                     "Random: Random position for each layer.");
     def->enum_keys_map = &ConfigOptionEnum<SeamPosition>::get_enum_values();
     def->enum_values.push_back("nearest");
     def->enum_values.push_back("aligned");
+    def->enum_values.push_back("aligned_back");
     def->enum_values.push_back("back");
     def->enum_values.push_back("random");
     def->enum_labels.push_back(L("Nearest"));
     def->enum_labels.push_back(L("Aligned"));
+    def->enum_labels.push_back(L("Aligned Back"));
     def->enum_labels.push_back(L("Back"));
     def->enum_labels.push_back(L("Random"));
     def->mode = comSimple;
