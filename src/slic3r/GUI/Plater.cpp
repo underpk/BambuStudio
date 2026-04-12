@@ -9415,6 +9415,36 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
                 wxGetApp().plater()->sidebar().auto_calc_flushing_volumes(-1);
             }
 
+            // Auto-connect to bound physical printer
+            {
+                PresetBundle *pb = wxGetApp().preset_bundle;
+                Preset& cur_preset = pb->printers.get_edited_preset();
+                std::string bound_dev_id = cur_preset.config.opt_string("physical_printer_id");
+
+                if (!bound_dev_id.empty()) {
+                    if (Slic3r::DeviceManager *dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
+                        MachineObject *current = dev->get_selected_machine();
+                        if (!current || current->get_dev_id() != bound_dev_id) {
+                            dev->set_selected_machine(bound_dev_id);
+                        }
+                        // Auto-sync after connecting — use a timer to wait for connection
+                        auto timer = new wxTimer();
+                        timer->Bind(wxEVT_TIMER, [timer](wxTimerEvent&) {
+                            timer->Stop();
+                            // Sync nozzle info
+                            bool only_external;
+                            auto ok = GUI::wxGetApp().sidebar().sync_extruder_list();
+                            if (ok) {
+                                // Auto-sync filaments too (skip the confirmation dialog)
+                                GUI::wxGetApp().sidebar().sync_ams_list(true);
+                            }
+                            delete timer;
+                        });
+                        timer->StartOnce(2000); // 2 seconds for connection to establish
+                    }
+                }
+            }
+
             // sync extruder info when select multi_extruder preset
             if (Slic3r::DeviceManager *dev = Slic3r::GUI::wxGetApp().getDeviceManager()) {
                 MachineObject *obj = dev->get_selected_machine();

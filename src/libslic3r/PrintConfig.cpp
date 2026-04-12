@@ -3973,6 +3973,14 @@ void PrintConfigDef::init_fff_params()
     //BBS: open this option to command line
     //def->cli = ConfigOptionDef::nocli;
 
+    def = this->add("physical_printer_id", coString);
+    def->label = L("Bound physical printer");
+    def->tooltip = L("Device ID of the physical printer bound to this preset. "
+                     "When this preset is selected, the app will auto-connect to this printer.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionString(""));
+    def->cli = ConfigOptionDef::nocli;
+
     def = this->add("raft_contact_distance", coFloat);
     def->label = L("Raft contact Z distance");
     def->category = L("Support");

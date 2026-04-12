@@ -4424,6 +4424,66 @@ void TabPrinter::build_fff()
         optgroup->append_single_option_line(option);
         optgroup->append_single_option_line("printable_height");
         optgroup->append_single_option_line("best_object_pos");
+
+        // Physical printer binding
+        optgroup = page->new_optgroup(L("Physical printer"));
+        create_line_with_widget(optgroup.get(), "physical_printer_id", "", [this](wxWindow* parent) {
+            auto sizer = new wxBoxSizer(wxHORIZONTAL);
+
+            m_bind_label = new wxStaticText(parent, wxID_ANY, _L("Not bound"));
+            m_bind_label->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+            sizer->Add(m_bind_label, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 10);
+
+            auto btn_bind = new ScalableButton(parent, wxID_ANY, "printer", _L("Bind..."),
+                wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT, true);
+            btn_bind->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+            btn_bind->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+                Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
+                if (!dev) return;
+
+                auto machine_map = dev->get_my_machine_list();
+                std::vector<MachineObject*> printers;
+                wxArrayString names;
+                for (auto& it : machine_map) {
+                    if (it.second) {
+                        printers.push_back(it.second);
+                        wxString name = from_u8(it.second->get_dev_name());
+                        if (it.second->is_lan_mode_printer()) name += " (LAN)";
+                        if (!it.second->is_online()) name += " (Offline)";
+                        names.Add(name);
+                    }
+                }
+                if (printers.empty()) {
+                    MessageDialog dlg(nullptr, _L("No printers available. Please add a printer first."), _L("Bind Printer"), wxOK | wxICON_WARNING);
+                    dlg.ShowModal();
+                    return;
+                }
+
+                wxSingleChoiceDialog dlg(nullptr, _L("Select a physical printer to bind to this preset:"),
+                                         _L("Bind Physical Printer"), names);
+                if (dlg.ShowModal() == wxID_OK) {
+                    int sel = dlg.GetSelection();
+                    if (sel >= 0 && sel < (int)printers.size()) {
+                        std::string dev_id = printers[sel]->get_dev_id();
+                        this->load_key_value("physical_printer_id", dev_id);
+                        update_physical_printer_label();
+                    }
+                }
+            });
+            sizer->Add(btn_bind, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
+
+            auto btn_unbind = new ScalableButton(parent, wxID_ANY, "cross", _L("Unbind"),
+                wxDefaultSize, wxDefaultPosition, wxBU_LEFT | wxBU_EXACTFIT, true);
+            btn_unbind->SetFont(Slic3r::GUI::wxGetApp().normal_font());
+            btn_unbind->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+                this->load_key_value("physical_printer_id", std::string(""));
+                update_physical_printer_label();
+            });
+            sizer->Add(btn_unbind, 0, wxALIGN_CENTER_VERTICAL);
+
+            return sizer;
+        });
+
         // todo: for multi_extruder test
         // BBS
 #if 0
@@ -5185,6 +5245,34 @@ void TabPrinter::reload_config()
     // so update it implicitly
     if (m_active_page && m_active_page->title() == "General")
         m_active_page->set_value("extruders_count", int(m_extruders_count));
+
+    update_physical_printer_label();
+}
+
+void TabPrinter::update_physical_printer_label()
+{
+    if (!m_bind_label) return;
+
+    std::string dev_id = m_config->opt_string("physical_printer_id");
+    if (dev_id.empty()) {
+        m_bind_label->SetLabel(_L("Not bound"));
+        return;
+    }
+
+    // Try to find the device name
+    Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
+    if (dev) {
+        auto machine_map = dev->get_my_machine_list();
+        auto it = machine_map.find(dev_id);
+        if (it != machine_map.end() && it->second) {
+            wxString label = from_u8(it->second->get_dev_name());
+            if (it->second->is_lan_mode_printer()) label += " (LAN)";
+            m_bind_label->SetLabel(label);
+            return;
+        }
+    }
+    // Device not found — show truncated ID
+    m_bind_label->SetLabel(from_u8(dev_id.substr(0, 12) + "..."));
 }
 
 void TabPrinter::activate_selected_page(std::function<void()> throw_if_canceled)
