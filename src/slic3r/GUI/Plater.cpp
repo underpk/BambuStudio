@@ -673,7 +673,7 @@ struct Sidebar::priv
     void jump_to_object(ObjectDataViewModelNode* item);
     void can_search();
 
-    bool sync_extruder_list(bool &only_external_material);
+    bool sync_extruder_list(bool &only_external_material, bool force_printer_select = false);
     bool switch_diameter(bool single);
     void update_sync_status(const MachineObject* obj);
     void adjust_filament_title_layout();
@@ -1493,14 +1493,59 @@ static bool is_skip_high_flow_printer(const std::string& printer)
     return invalidate_list.count(printer);
 };
 
-bool Sidebar::priv::sync_extruder_list(bool &only_external_material)
+bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool force_printer_select)
 {
     MachineObject *obj = wxGetApp().getDeviceManager()->get_selected_machine();
     auto           printer_name = plater->get_selected_printer_name_in_combox();
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << __LINE__ << " begin sync_extruder_list";
-    if (obj == nullptr || !obj->is_online()) {
-        plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
-        return false;
+    if (obj == nullptr || !obj->is_online() || force_printer_select) {
+        // Show printer selection dialog instead of redirecting to Device tab
+        DeviceManager* dev = wxGetApp().getDeviceManager();
+        if (!dev) {
+            plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
+            return false;
+        }
+
+        std::map<std::string, MachineObject*> machine_map = dev->get_my_machine_list();
+        std::vector<MachineObject*> available_printers;
+        wxArrayString printer_names;
+
+        for (auto& it : machine_map) {
+            if (it.second) {
+                bool is_available = it.second->is_online() || it.second->is_connected();
+                if (force_printer_select || is_available) {
+                    available_printers.push_back(it.second);
+                    wxString name = from_u8(it.second->get_dev_name());
+                    if (it.second->is_lan_mode_printer()) {
+                        name += " (LAN)";
+                    }
+                    if (!is_available) {
+                        name += " (Offline)";
+                    }
+                    printer_names.Add(name);
+                }
+            }
+        }
+
+        if (available_printers.empty()) {
+            plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
+            return false;
+        }
+
+        wxSingleChoiceDialog dlg(plater, _L("Select a printer to sync information from:"),
+                                 _L("Select Printer"), printer_names);
+        if (dlg.ShowModal() != wxID_OK) {
+            return false;
+        }
+
+        int selection = dlg.GetSelection();
+        if (selection < 0 || selection >= (int)available_printers.size()) {
+            return false;
+        }
+
+        MachineObject* selected = available_printers[selection];
+        dev->set_selected_machine(selected->get_dev_id());
+        obj = selected;
     }
     //if (obj->get_extder_system()->extders.size() != 2) {//wxString(obj->get_preset_printer_model_name(machine_print_name))
     //    plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::INCONSISTENT, _L("Sync printer information"));
@@ -2071,7 +2116,8 @@ Sidebar::Sidebar(Plater *parent)
         btn_sync->SetVertical();
         btn_sync->Bind(wxEVT_UPDATE_UI, &Sidebar::update_sync_ams_btn_enable, this);
         btn_sync->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) {
-            deal_btn_sync();
+            bool force_select = wxGetKeyState(WXK_SHIFT);
+            deal_btn_sync(force_select);
         });
         p->timer_sync_printer->Bind(wxEVT_TIMER, [this] (wxTimerEvent & e) {
             p->flush_printer_sync();
@@ -3401,10 +3447,10 @@ std::map<int, DynamicPrintConfig> Sidebar::build_filament_ams_list(MachineObject
     return filament_ams_list;
 }
 
-bool Sidebar::sync_extruder_list()
+bool Sidebar::sync_extruder_list(bool force_printer_select)
 {
     bool only_external_material;
-    return p->sync_extruder_list(only_external_material);
+    return p->sync_extruder_list(only_external_material, force_printer_select);
 }
 
 bool Sidebar::need_auto_sync_extruder_list_after_connect_priner(const MachineObject *obj)
@@ -3525,9 +3571,57 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         if (obj) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << "obj->is_online(): " << obj->is_online();
         }
-        auto printer_name = p->plater->get_selected_printer_name_in_combox();
-        p->plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
-        return;
+
+        // Show printer selection dialog instead of redirecting to Device tab
+        DeviceManager* dev = wxGetApp().getDeviceManager();
+        if (!dev) return;
+
+        std::map<std::string, MachineObject*> machine_map = dev->get_my_machine_list();
+        std::vector<MachineObject*> available_printers;
+        wxArrayString printer_names;
+
+        for (auto& it : machine_map) {
+            if (it.second && (it.second->is_online() || it.second->is_connected())) {
+                available_printers.push_back(it.second);
+                wxString name = from_u8(it.second->get_dev_name());
+                if (it.second->is_lan_mode_printer()) {
+                    name += " (LAN)";
+                }
+                printer_names.Add(name);
+            }
+        }
+
+        if (available_printers.empty()) {
+            auto printer_name = p->plater->get_selected_printer_name_in_combox();
+            p->plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
+            return;
+        }
+
+        wxSingleChoiceDialog dlg(p->plater, _L("Select a printer to sync AMS filament information from:"),
+                                 _L("Select Printer"), printer_names);
+        if (dlg.ShowModal() != wxID_OK) {
+            return;
+        }
+
+        int selection = dlg.GetSelection();
+        if (selection < 0 || selection >= (int)available_printers.size()) {
+            return;
+        }
+
+        MachineObject* selected = available_printers[selection];
+        dev->set_selected_machine(selected->get_dev_id());
+        obj = selected;
+
+        // Reload AMS list from the newly selected printer
+        GUI::wxGetApp().sidebar().load_ams_list(obj);
+        list = wxGetApp().preset_bundle->filament_ams_list;
+
+        if (list.empty() || !obj->is_online()) {
+            MessageDialog msg_dlg(p->plater, _L("Failed to get AMS information from the selected printer. Please try again."),
+                                  _L("Sync Failed"), wxICON_WARNING | wxOK);
+            msg_dlg.ShowModal();
+            return;
+        }
     }
     bool exist_at_list_one_filament =false;
     for (auto &cur : list) {
@@ -3823,10 +3917,10 @@ bool Sidebar::is_multifilament()
     return p->combos_filament.size() > 1;
 }
 
-void Sidebar::deal_btn_sync() {
+void Sidebar::deal_btn_sync(bool force_printer_select) {
     m_begin_sync_printer_status = true;
     bool only_external_material;
-    auto ok = p->sync_extruder_list(only_external_material);
+    auto ok = p->sync_extruder_list(only_external_material, force_printer_select);
     if (ok) {
         pop_sync_nozzle_and_ams_dialog();
     } else {
