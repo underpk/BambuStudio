@@ -679,18 +679,23 @@ void SelectMachinePopup::update_user_devices()
         //set in lan
         if (mobj->is_lan_mode_printer()) {
             if (!mobj->is_online()) {
-                continue;
+                // Show offline LAN printers instead of skipping
+                op->SetToolTip(_L("Offline"));
+                op->set_printer_state(PrinterState::OFFLINE);
+                op->show_printer_bind(true, PrinterBindState::ALLOW_UNBIND);
+                op->show_edit_printer_name(true);
             }
             else {
                 op->show_printer_bind(false, PrinterBindState::NONE);
-                op->show_edit_printer_name(false);
                 if (mobj->has_access_right() && mobj->is_avaliable()) {
                     op->set_printer_state(PrinterState::IN_LAN);
                     op->show_printer_bind(true, PrinterBindState::ALLOW_UNBIND);
+                    op->show_edit_printer_name(true);
                     op->SetToolTip(_L("Online"));
                 }
                 else {
                     op->set_printer_state(PrinterState::LOCK);
+                    op->show_edit_printer_name(false);
                 }
             }
             op->Bind(EVT_UNBIND_MACHINE, [this, dev, mobj](wxCommandEvent& e) {
@@ -699,13 +704,14 @@ void SelectMachinePopup::update_user_devices()
                     mobj->set_access_code("");
                     mobj->erase_user_access_code();
                     mobj->erase_user_access_dev_ip();
-                    wxGetApp().app_config->erase("user_access_dev_ip", mobj->get_dev_id());
+                    dev->remove_saved_lan_device(mobj->get_dev_id());
+                    dev->erase_local_machine(mobj->get_dev_id());
                 }
 
                 if (GUI::wxGetApp().plater())
                     GUI::wxGetApp().plater()->update_machine_sync_status();
 
-                MessageDialog msg_wingow(nullptr, _L("Log out successful."), "", wxAPPLY | wxOK);
+                MessageDialog msg_wingow(nullptr, _L("Device removed."), "", wxAPPLY | wxOK);
                 if (msg_wingow.ShowModal() == wxOK) { return; }
                 });
         }
