@@ -757,7 +757,7 @@ namespace Slic3r
         MachineObject* obj = get_local_machine(dev_id);
         if (obj && obj->is_lan_mode_printer()) {
             obj->set_local_dev_nickname(dev_name);
-            save_lan_device_info(dev_id, dev_name, obj->dev_ip, obj->printer_type);
+            save_lan_device_info(dev_id, dev_name, obj->get_dev_ip(), obj->printer_type);
             return;
         }
 
