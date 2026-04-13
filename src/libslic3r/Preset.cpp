@@ -1043,6 +1043,11 @@ static std::vector<std::string> s_Preset_filament_options{/*"filament_colour", *
     "filament_overhang_4_4_speed",
     "filament_overhang_totally_speed",
     "override_process_overhang_speed",
+    // Per-filament ironing overrides
+    "override_process_ironing",
+    "filament_ironing_flow",
+    "filament_ironing_speed",
+    "filament_ironing_spacing",
     "filament_cooling_before_tower",
     "filament_tower_interface_pre_extrusion_dist",
     "filament_tower_interface_pre_extrusion_length",

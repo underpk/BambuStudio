@@ -983,6 +983,24 @@ void Layer::make_ironing()
 				ironing_params.speed 		= config.ironing_speed;
 				ironing_params.angle 		= (int(config.ironing_direction.value+layerm->region().config().infill_direction.value)%180) * M_PI / 180.;
 				ironing_params.pattern      = config.ironing_pattern;
+				// Apply per-filament ironing overrides if enabled
+				{
+					const PrintConfig &print_config = this->object()->print()->config();
+					int filament_idx = ironing_params.extruder - 1; // 1-based to 0-based
+					if (filament_idx >= 0 &&
+						filament_idx < int(print_config.override_process_ironing.values.size()) &&
+						print_config.override_process_ironing.values[filament_idx]) {
+						if (filament_idx < int(print_config.filament_ironing_flow.values.size()) &&
+							!print_config.filament_ironing_flow.is_nil(filament_idx))
+							ironing_params.height = default_layer_height * 0.01 * print_config.filament_ironing_flow.values[filament_idx];
+						if (filament_idx < int(print_config.filament_ironing_speed.values.size()) &&
+							!print_config.filament_ironing_speed.is_nil(filament_idx))
+							ironing_params.speed = print_config.filament_ironing_speed.values[filament_idx];
+						if (filament_idx < int(print_config.filament_ironing_spacing.values.size()) &&
+							!print_config.filament_ironing_spacing.is_nil(filament_idx))
+							ironing_params.line_spacing = print_config.filament_ironing_spacing.values[filament_idx];
+					}
+				}
 				ironing_params.layerm 		= layerm;
 				by_extruder.emplace_back(ironing_params);
 			}

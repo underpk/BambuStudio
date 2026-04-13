@@ -3794,6 +3794,12 @@ void TabFilament::add_filament_overrides_page()
     optgroup->append_single_option_line("filament_overhang_4_4_speed", "", extruder_idx);
     optgroup->append_single_option_line("filament_overhang_totally_speed", "", extruder_idx);
     optgroup->append_single_option_line("filament_bridge_speed", "", extruder_idx);
+
+    optgroup = page->new_optgroup(L("Ironing"), L"param_ironing", 15);
+    optgroup->append_single_option_line("override_process_ironing", "", extruder_idx);
+    optgroup->append_single_option_line("filament_ironing_flow", "", extruder_idx);
+    optgroup->append_single_option_line("filament_ironing_speed", "", extruder_idx);
+    optgroup->append_single_option_line("filament_ironing_spacing", "", extruder_idx);
 #else
     Line line = {L("Overhang speed"), L("This is the speed for various overhang degrees. Overhang degrees are expressed as a percentage of line width. 0 speed means no slowing "
                                         "down for the overhang degree range and wall speed is used")};
@@ -3888,6 +3894,16 @@ void TabFilament::update_filament_overrides_page()
         "filament_overhang_totally_speed"
     }){
         toggle_line(key, enable_overhang_speed && overhang_override, extruder_idx + 256);
+    }
+
+    // Per-filament ironing overrides
+    bool ironing_override = m_config->opt_bool_nullable("override_process_ironing", extruder_idx);
+    for (auto key : {
+        "filament_ironing_flow",
+        "filament_ironing_speed",
+        "filament_ironing_spacing"
+    }) {
+        toggle_line(key, ironing_override, extruder_idx + 256);
     }
 }
 

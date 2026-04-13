@@ -1229,6 +1229,11 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatsNullable,      filament_overhang_2_4_speed))
     ((ConfigOptionFloatsNullable,      filament_overhang_3_4_speed))
     ((ConfigOptionFloatsNullable,      filament_overhang_4_4_speed))
+    // Per-filament ironing overrides
+    ((ConfigOptionBoolsNullable,       override_process_ironing))
+    ((ConfigOptionPercentsNullable,    filament_ironing_flow))
+    ((ConfigOptionFloatsNullable,      filament_ironing_speed))
+    ((ConfigOptionFloatsNullable,      filament_ironing_spacing))
     ((ConfigOptionFloatsNullable,      filament_overhang_totally_speed))
     //ams chamber
     ((ConfigOptionStrings,  filament_dev_ams_drying_ams_limitations))

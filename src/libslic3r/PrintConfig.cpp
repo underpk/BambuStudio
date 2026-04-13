@@ -88,6 +88,12 @@ const std::vector<std::string> filament_overhang_override_keys = {
     "filament_overhang_totally_speed"
 };
 
+const std::vector<std::string> filament_ironing_override_keys = {
+    "filament_ironing_flow",
+    "filament_ironing_speed",
+    "filament_ironing_spacing"
+};
+
 size_t get_extruder_index(const GCodeConfig& config, unsigned int filament_id)
 {
     if (filament_id < config.filament_map.size()) {
@@ -5816,6 +5822,44 @@ void PrintConfigDef::init_fff_params()
     def->nullable = true;
     def->set_default_value(new ConfigOptionBoolsNullable({false}));
 
+    // Per-filament ironing overrides
+    def = this->add("override_process_ironing", coBools);
+    def->mode = comAdvanced;
+    def->label = L("Override ironing settings");
+    def->tooltip = L("Override the ironing flow, speed and spacing from the process profile with per-filament values");
+    def->nullable = true;
+    def->set_default_value(new ConfigOptionBoolsNullable({false}));
+
+    def = this->add("filament_ironing_flow", coPercents);
+    def->label = L("Ironing flow");
+    def->tooltip = L("The amount of material to extrude during ironing for this filament. "
+                     "Relative to flow of normal layer height. Too high value results in overextrusion on the surface");
+    def->sidetext = "%";
+    def->min = 0;
+    def->max = 100;
+    def->mode = comAdvanced;
+    def->nullable = true;
+    def->set_default_value(new ConfigOptionPercentsNullable({10}));
+
+    def = this->add("filament_ironing_speed", coFloats);
+    def->label = L("Ironing speed");
+    def->tooltip = L("Print speed of ironing lines for this filament");
+    def->sidetext = L("mm/s");
+    def->min = 0;
+    def->mode = comAdvanced;
+    def->nullable = true;
+    def->set_default_value(new ConfigOptionFloatsNullable({20}));
+
+    def = this->add("filament_ironing_spacing", coFloats);
+    def->label = L("Ironing line spacing");
+    def->tooltip = L("The distance between the lines of ironing for this filament");
+    def->sidetext = L("mm");
+    def->min = 0;
+    def->max = 1;
+    def->mode = comAdvanced;
+    def->nullable = true;
+    def->set_default_value(new ConfigOptionFloatsNullable({0.1}));
+
     def = this->add("detect_narrow_internal_solid_infill", coBool);
     def->label = L("Detect narrow internal solid infill");
     def->category = L("Strength");
@@ -6781,6 +6825,10 @@ std::set<std::string> filament_options_with_variant = {
     "filament_overhang_4_4_speed",
     "filament_overhang_totally_speed",
     "override_process_overhang_speed",
+    "override_process_ironing",
+    "filament_ironing_flow",
+    "filament_ironing_speed",
+    "filament_ironing_spacing",
     "volumetric_speed_coefficients",
     "filament_adaptive_volumetric_speed",
     "filament_cooling_before_tower",
