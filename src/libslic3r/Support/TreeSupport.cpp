@@ -612,6 +612,9 @@ TreeSupport::TreeSupport(PrintObject& object, const SlicingParameters &slicing_p
     support_type = m_object_config->support_type;
 
     SupportMaterialPattern support_pattern  = m_object_config->support_base_pattern;
+    // Use tree-specific base pattern if set, otherwise fall back to generic support pattern
+    if (m_object_config->tree_support_base_pattern != smpDefault)
+        support_pattern = m_object_config->tree_support_base_pattern;
     if (m_support_params.support_style == smsTreeHybrid && support_pattern == smpDefault)
         support_pattern = smpRectilinear;//smpLightning;
 

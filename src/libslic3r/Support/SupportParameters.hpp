@@ -156,6 +156,9 @@ struct SupportParameters {
         }
 
         support_base_pattern = object_config.support_base_pattern;
+        // Override with tree-specific pattern if set and using tree supports
+        if (is_tree(object_config.support_type) && object_config.tree_support_base_pattern != smpDefault)
+            support_base_pattern = object_config.tree_support_base_pattern;
         if (support_base_pattern == smpLightning && !is_tree(object_config.support_type)) support_base_pattern = smpRectilinear;
         if (support_base_pattern == smpDefault) {
             if (is_tree(object_config.support_type))

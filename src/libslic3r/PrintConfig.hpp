@@ -873,6 +873,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat, support_ironing_speed))
     ((ConfigOptionFloatsNullable,      support_interface_speed))
     ((ConfigOptionEnum<SupportMaterialPattern>, support_base_pattern))
+    ((ConfigOptionEnum<SupportMaterialPattern>, tree_support_base_pattern))
     ((ConfigOptionEnum<SupportMaterialInterfacePattern>, support_interface_pattern))
     // Spacing between support material lines (the hatching distance).
     ((ConfigOptionFloat,               support_base_pattern_spacing))

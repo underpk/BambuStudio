@@ -958,7 +958,7 @@ static std::vector<std::string> s_Preset_print_options {
     "skirt_height", "draft_shield",
     "brim_width", "brim_object_gap", "brim_type", "enable_support", "support_type", "support_threshold_angle", "enforce_support_layers",
     "raft_layers", "raft_first_layer_density", "raft_first_layer_expansion", "raft_contact_distance", "raft_expansion",
-    "support_base_pattern", "support_base_pattern_spacing", "support_expansion", "support_style",
+    "support_base_pattern", "tree_support_base_pattern", "support_base_pattern_spacing", "support_expansion", "support_style",
     // BBS
     "print_extruder_id", "print_extruder_variant", "independent_support_layer_height",
     "top_z_overrides_xy_distance",

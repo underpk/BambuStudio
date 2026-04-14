@@ -5047,6 +5047,27 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionEnum<SupportMaterialInterfacePattern>(smipAuto));
 
+    def = this->add("tree_support_base_pattern", coEnum);
+    def->label = L("Tree support base pattern");
+    def->category = L("Support");
+    def->tooltip = L("Infill pattern for the base of tree/organic supports. Default uses the same pattern "
+                     "as regular support base. Setting a specific pattern can make tree support bases stronger.");
+    def->enum_keys_map = &ConfigOptionEnum<SupportMaterialPattern>::get_enum_values();
+    def->enum_values.push_back("default");
+    def->enum_values.push_back("rectilinear");
+    def->enum_values.push_back("rectilinear-grid");
+    def->enum_values.push_back("honeycomb");
+    def->enum_values.push_back("lightning");
+    def->enum_values.push_back("hollow");
+    def->enum_labels.push_back(L("Default"));
+    def->enum_labels.push_back(L("Rectilinear"));
+    def->enum_labels.push_back(L("Rectilinear grid"));
+    def->enum_labels.push_back(L("Honeycomb"));
+    def->enum_labels.push_back(L("Lightning"));
+    def->enum_labels.push_back(L("Hollow"));
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionEnum<SupportMaterialPattern>(smpDefault));
+
     def = this->add("support_base_pattern_spacing", coFloat);
     def->label = L("Base pattern spacing");
     def->category = L("Support");
