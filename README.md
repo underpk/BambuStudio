@@ -1,52 +1,66 @@
-![image](https://user-images.githubusercontent.com/106916061/179006347-497d24c0-9bd6-45b7-8c49-d5cc8ecfe5d7.png)
-# BambuStudio
-Bambu Studio is a cutting-edge, feature-rich slicing software.  
-It contains project-based workflows, systematically optimized slicing algorithms, and an easy-to-use graphic interface, bringing users an incredibly smooth printing experience.
+# BambuStudio LAN Plus
 
-Prebuilt Windows, macOS 64-bit and Linux releases are available through the [github releases page](https://github.com/bambulab/BambuStudio/releases/).
+A feature-enhanced fork of [BambuStudio](https://github.com/bambulab/BambuStudio) focused on LAN printer management, quality-of-life improvements, and advanced slicing features sourced from OrcaSlicer, SuperSlicer, PrusaSlicer, and CrealityPrint.
 
-Bambu Studio is based on [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
+## Downloads
 
-See the [wiki](https://github.com/bambulab/BambuStudio/wiki) and the [documentation directory](https://github.com/bambulab/BambuStudio/tree/master/doc) for more information.
+Prebuilt binaries for **Windows**, **macOS** (ARM + Intel), and **Linux** (Ubuntu 22.04/24.04) are available from [GitHub Actions artifacts](https://github.com/underpk/BambuStudio/actions).
 
-# What are Bambu Studio's main features?
-Key features are:
-- Basic slicing features & GCode viewer
-- Multiple plates management
-- Remote control & monitoring
-- Auto-arrange objects
-- Auto-orient objects
-- Hybrid/Tree/Normal support types, Customized support
-- multi-material printing and rich painting tools
-- multi-platform (Win/Mac/Linux) support
-- Global/Object/Part level slicing parameters
+## LAN Plus Features
 
-Other major features are:
-- Advanced cooling logic controlling fan speed and dynamic print speed
-- Auto brim according to mechanical analysis
-- Support arc path(G2/G3)
-- Support STEP format
-- Assembly & explosion view
-- Flushing transition-filament into infill/object during filament change
+- **LAN Printer Persistence** - Save, rename, delete, and auto-connect LAN printers without Bambu Cloud
+- **Physical Printer Binding** - Bind a printer to a preset for auto-connect and auto-sync on preset switch
+- **Universal Profiles** - Profiles compatible with all printers, no more "incompatible printer" warnings
 
-# How to compile
-Following platforms are currently supported to compile:
-- Windows 64-bit, [Compile Guide](https://github.com/bambulab/BambuStudio/wiki/Windows-Compile-Guide)
-- Mac 64-bit, [Compile Guide](https://github.com/bambulab/BambuStudio/wiki/Mac-Compile-Guide)
-- Linux, [Compile Guide](https://github.com/bambulab/BambuStudio/wiki/Linux-Compile-Guide)
-  - currently we only provide linux appimages on [github releases](https://github.com/bambulab/BambuStudio/releases) for Ubuntu/Fedora, and a [flathub version](https://flathub.org/apps/com.bambulab.BambuStudio) can be used for all the linux platforms
+## Slicing Enhancements
 
-# Report issue
-You can add an issue to the [github tracker](https://github.com/bambulab/BambuStudio/issues) if **it isn't already present.**
+- **Per-filament Ironing Overrides** - Override ironing flow, speed, and spacing per filament (e.g. different settings for PETG vs PLA) via the filament Setting Overrides tab
+- **Aligned Back Seam** - Seam position option from OrcaSlicer
+- **External/Internal Bridge Density** - Separate bridge density controls from OrcaSlicer
+- **Support Interface Ironing** - Iron support interface layers for smoother contact surfaces
 
-# License
-Bambu Studio is licensed under the GNU Affero General Public License, version 3. Bambu Studio is based on PrusaSlicer by PrusaResearch.
+## UI Improvements
 
-PrusaSlicer is licensed under the GNU Affero General Public License, version 3. PrusaSlicer is owned by Prusa Research. PrusaSlicer is originally based on Slic3r by Alessandro Ranellucci.
+- **Default to Line Type view** - Opens on Prepare page with Line Type coloring
+- **Duplicate Count in Object List** - Shows instance count (1/6, 2/6, etc.)
+- **Ironing Calibration Tool** - Built-in calibration for ironing settings
+- **Printer Selection Dialog** - Printer picker on Sync Info button
 
-Slic3r is licensed under the GNU Affero General Public License, version 3. Slic3r was created by Alessandro Ranellucci with the help of many other contributors.
+## How to Compile
 
-The GNU Affero General Public License, version 3 ensures that if you use any part of this software in any way (even behind a web server), your software must be released under the same license.
+### Windows
+```batch
+build_win.bat -d "path\to\deps"
+```
 
-The bambu networking plugin is based on non-free libraries. It is optional to the Bambu Studio and provides extended networking functionalities for users.
-By default, after installing Bambu Studio without the networking plugin, you can initiate printing through the SD card after slicing is completed.
+### macOS
+```bash
+./BuildMac.sh -ds   # Build deps then slicer
+```
+
+### Linux (Ubuntu)
+```bash
+sudo ./BuildLinux.sh -u   # First time: install system deps
+./BuildLinux.sh -dsi       # Build deps, slicer, and AppImage
+```
+
+See the [wiki](https://github.com/bambulab/BambuStudio/wiki) for detailed compile guides.
+
+## CI/CD
+
+GitHub Actions builds all platforms automatically on push to master:
+- Ubuntu 22.04 / 24.04 (AppImage)
+- Windows (portable zip)
+- macOS ARM (arm64) and Intel (x86_64)
+
+Dependencies are cached after first build for faster subsequent runs.
+
+## Credits
+
+Based on [BambuStudio](https://github.com/bambulab/BambuStudio) by Bambu Lab, which is based on [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
+
+Features researched and ported from [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer), [SuperSlicer](https://github.com/supermerill/SuperSlicer), [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer), and [CrealityPrint](https://www.creality.com/).
+
+## License
+
+Licensed under the GNU Affero General Public License, version 3. See [LICENSE](LICENSE) for details.
