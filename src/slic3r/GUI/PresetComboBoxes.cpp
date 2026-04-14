@@ -1181,15 +1181,23 @@ void PlaterPresetComboBox::update()
 
             bitmap_key += single_bar ? filament_rgb : filament_rgb + extruder_rgb;
 #endif
-            if (preset.is_system) {
-                if (!preset.is_compatible && preset_filament_vendors.count(name) > 0)
-                    continue;
-                else if (preset.is_compatible && preset_filament_vendors.count(name) > 0)
-                    uncompatible_presets.erase(name);
-                preset_filament_vendors[name] = preset.config.option<ConfigOptionStrings>("filament_vendor")->values.at(0);
-                if (preset_filament_vendors[name] == "Bambu Lab")
-                    preset_filament_vendors[name] = "Bambu";
-                preset_filament_types[name] = preset.config.option<ConfigOptionStrings>("filament_type")->values.at(0);
+            {
+                if (preset.is_system) {
+                    if (!preset.is_compatible && preset_filament_vendors.count(name) > 0)
+                        continue;
+                    else if (preset.is_compatible && preset_filament_vendors.count(name) > 0)
+                        uncompatible_presets.erase(name);
+                }
+                // Extract vendor/type for both system and user presets with a vendor set
+                auto *vendor_opt = preset.config.option<ConfigOptionStrings>("filament_vendor");
+                if (vendor_opt && !vendor_opt->values.empty() && !vendor_opt->values.at(0).empty()) {
+                    preset_filament_vendors[name] = vendor_opt->values.at(0);
+                    if (preset_filament_vendors[name] == "Bambu Lab")
+                        preset_filament_vendors[name] = "Bambu";
+                }
+                auto *type_opt = preset.config.option<ConfigOptionStrings>("filament_type");
+                if (type_opt && !type_opt->values.empty())
+                    preset_filament_types[name] = type_opt->values.at(0);
             }
         }
         wxBitmap* bmp = get_bmp(preset);
@@ -1235,11 +1243,24 @@ void PlaterPresetComboBox::update()
         }
         else
         {
-            nonsys_presets.emplace(name, bmp);
-            if (is_selected) {
-                selected_user_preset = name;
-                //BBS set tooltip
-                tooltip = get_tooltip(preset);
+            // Base vendor profiles (has vendor, no parent) go into system_presets group
+            // so they appear alongside system vendors (e.g. Kaaber next to Bambu).
+            // Derived profiles (inherits from another preset) stay in user presets.
+            bool has_vendor = preset_filament_vendors.count(name) > 0;
+            bool is_base_vendor = has_vendor && preset.inherits().empty();
+            if (m_type == Preset::TYPE_FILAMENT && is_base_vendor) {
+                system_presets.emplace(name, bmp);
+                if (is_selected) {
+                    selected_system_preset = name;
+                    tooltip = get_tooltip(preset);
+                }
+            } else {
+                nonsys_presets.emplace(name, bmp);
+                if (is_selected) {
+                    selected_user_preset = name;
+                    //BBS set tooltip
+                    tooltip = get_tooltip(preset);
+                }
             }
         }
         //BBS: move system to the end
