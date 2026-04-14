@@ -990,6 +990,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat, ironing_spacing))
     ((ConfigOptionFloat, ironing_inset))
     ((ConfigOptionFloat, ironing_direction))
+    ((ConfigOptionBool, ironing_angle_fixed))
     ((ConfigOptionFloat, ironing_speed))
     // Detect bridging perimeters
     ((ConfigOptionBool, detect_overhang_wall))

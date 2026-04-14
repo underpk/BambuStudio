@@ -805,6 +805,33 @@ double configBrimWidthByVolumeGroups(double adhension, double maxSpeed, const st
     return brim_width;
 }
 
+// Auto-detect convex corners and generate brim ears at each corner
+static ExPolygons make_brim_ears_auto(const ExPolygon &ex_poly, float brim_width, float brim_offset, Flow &flow)
+{
+    ExPolygons ears_ex;
+    // Detect convex corners with angle threshold ~60 degrees (PI/3)
+    Points convex_pts = ex_poly.contour.convex_points(M_PI / 3.0);
+    if (convex_pts.empty())
+        return ears_ex;
+
+    coord_t ear_radius = brim_width - brim_offset - flow.scaled_spacing();
+    if (ear_radius <= 0)
+        return ears_ex;
+
+    for (const Point &corner : convex_pts) {
+        Polygon circle;
+        for (size_t i = 0; i < POLY_SIDE_COUNT; ++i) {
+            double angle = (2.0 * PI * i) / POLY_SIDE_COUNT;
+            circle.points.emplace_back(
+                corner.x() + coord_t(ear_radius * cos(angle)),
+                corner.y() + coord_t(ear_radius * sin(angle)));
+        }
+        ears_ex.emplace_back();
+        ears_ex.back().contour = circle;
+    }
+    return ears_ex;
+}
+
 static ExPolygons make_brim_ears(const PrintObject* object, const double& flowWidth, float brim_offset, Flow &flow, bool is_outer_brim)
 {
     ExPolygons mouse_ears_ex;
@@ -970,8 +997,11 @@ static ExPolygons outer_inner_brim_area(const Print& print,
                             auto innerExpoly = offset_ex(ex_poly.contour, brim_offset, jtRound, SCALED_RESOLUTION);
                             ExPolygons outerExpoly;
                             if (use_brim_ears) {
-                                outerExpoly = make_brim_ears(object, flowWidth, brim_offset, flow, true);
-                                //outerExpoly = offset_ex(outerExpoly, brim_width_mod, jtRound, SCALED_RESOLUTION);
+                                // Use manual brim points if placed, otherwise auto-detect convex corners
+                                if (object->model_object()->brim_points.empty())
+                                    outerExpoly = make_brim_ears_auto(ex_poly, brim_width_mod, brim_offset, flow);
+                                else
+                                    outerExpoly = make_brim_ears(object, flowWidth, brim_offset, flow, true);
                             }else {
                                 outerExpoly = offset_ex(innerExpoly, brim_width_mod, jtRound, SCALED_RESOLUTION);
                             }

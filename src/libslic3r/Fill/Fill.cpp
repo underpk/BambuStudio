@@ -981,7 +981,9 @@ void Layer::make_ironing()
 				ironing_params.inset 		= config.ironing_inset;
 				ironing_params.height 		= default_layer_height * 0.01 * config.ironing_flow;
 				ironing_params.speed 		= config.ironing_speed;
-				ironing_params.angle 		= (int(config.ironing_direction.value+layerm->region().config().infill_direction.value)%180) * M_PI / 180.;
+				ironing_params.angle 		= config.ironing_angle_fixed
+					? config.ironing_direction.value * M_PI / 180.
+					: (int(config.ironing_direction.value+layerm->region().config().infill_direction.value)%180) * M_PI / 180.;
 				ironing_params.pattern      = config.ironing_pattern;
 				// Apply per-filament ironing overrides if enabled
 				{

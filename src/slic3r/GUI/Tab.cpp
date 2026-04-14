@@ -2675,6 +2675,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("ironing_spacing");
         optgroup->append_single_option_line("ironing_inset");
         optgroup->append_single_option_line("ironing_direction");
+        optgroup->append_single_option_line("ironing_angle_fixed");
 
         optgroup = page->new_optgroup(L("Wall generator"), L"param_wall");
         optgroup->append_single_option_line("wall_generator", "wall-generator");
