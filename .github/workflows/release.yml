@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_all:
+    name: Build All
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+          - os: ubuntu-24.04
+          - os: windows-latest
+          - os: macos-15-intel
+            arch: x86_64
+          - os: macos-15
+            arch: arm64
+    uses: ./.github/workflows/build_check_cache.yml
+    with:
+      os: ${{ matrix.os }}
+      arch: ${{ matrix.arch }}
+      build-deps-only: false
+    secrets: inherit
+
+  release:
+    name: Create Release
+    needs: build_all
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Get version from tag
+        id: version
+        run: |
+          echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          ver_pure=$(grep 'set(SLIC3R_VERSION' version.inc | cut -d '"' -f2)
+          echo "ver=V${ver_pure}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f | head -50
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "BambuStudio LAN Plus ${{ steps.version.outputs.tag }}"
+          body: |
+            ## BambuStudio LAN Plus ${{ steps.version.outputs.tag }}
+
+            ### Downloads
+            | Platform | File |
+            |----------|------|
+            | Windows (portable) | `BambuStudio_Windows_*.zip` |
+            | macOS ARM (Apple Silicon) | `BambuStudio_Mac_arm64_*.zip` |
+            | macOS Intel | `BambuStudio_Mac_x86_64_*.zip` |
+            | Ubuntu 22.04 | `Bambu_Studio_ubuntu-22.04_*.AppImage` |
+            | Ubuntu 24.04 | `Bambu_Studio_ubuntu-24.04_*.AppImage` |
+
+            ### Features
+            - LAN Printer Persistence (save, rename, delete, auto-connect)
+            - Physical Printer Binding (auto-connect + auto-sync on preset switch)
+            - Universal Profiles (compatible with all printers)
+            - Per-filament Ironing Overrides (flow, speed, spacing)
+            - Brim Ears (auto corner detection)
+            - Fixed Ironing Angle
+            - Tree Support Base Pattern selection
+            - Default values in setting tooltips
+            - Custom vendor filaments grouped with system presets
+            - Compatible printers auto-save for user presets
+            - Filament dialog flicker fix
+
+            See [README](https://github.com/underpk/BambuStudio/blob/master/README.md) for full details.
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*.zip
+            artifacts/**/*.AppImage
