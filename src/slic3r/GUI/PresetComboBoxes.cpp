@@ -970,8 +970,12 @@ bool PlaterPresetComboBox::switch_to_tab()
     //BBS  Select NoteBook Tab params
     if (tab->GetParent() == wxGetApp().params_panel())
         wxGetApp().mainframe->select_tab(MainFrame::tp3DEditor);
-    else
+    else {
+        // Set the correct tab before showing dialog to avoid flicker
+        // (otherwise the previously-active tab flashes briefly)
+        wxGetApp().params_dialog()->panel()->set_active_tab(tab);
         wxGetApp().params_dialog()->Popup();
+    }
     tab->restore_last_select_item();
 
     const Preset* selected_filament_preset = nullptr;

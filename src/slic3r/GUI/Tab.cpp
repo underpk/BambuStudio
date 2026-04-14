@@ -6830,6 +6830,9 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
             this->load_key_value(deps.key_list, std::vector<std::string> {});
         this->get_field(deps.key_condition)->toggle(deps.checkbox->GetValue());
         this->update_changed_ui();
+        // Auto-save the preset so compatible_printers persists across sessions
+        if (m_presets->current_is_dirty())
+            m_presets->get_edited_preset().save(nullptr);
     }) );
 
     deps.btn->Bind(wxEVT_BUTTON, ([this, parent, &deps](wxCommandEvent e)
