@@ -1895,14 +1895,46 @@ static bool is_skip_high_flow_printer(const std::string& printer)
     return invalidate_list.count(printer);
 };
 
+static MachineObject* select_bound_physical_printer(DeviceManager* dev)
+{
+    if (!dev || !wxGetApp().preset_bundle)
+        return nullptr;
+
+    const Preset& selected_preset = wxGetApp().preset_bundle->printers.get_selected_preset();
+    const std::string bound_dev_id = selected_preset.config.opt_string("physical_printer_id");
+    if (bound_dev_id.empty())
+        return nullptr;
+
+    auto machine_map = dev->get_my_machine_list();
+    auto machine_it = machine_map.find(bound_dev_id);
+    if (machine_it == machine_map.end() || !machine_it->second)
+        return nullptr;
+
+    MachineObject* current = dev->get_selected_machine();
+    if (!current || current->get_dev_id() != bound_dev_id) {
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": selecting bound physical printer " << bound_dev_id;
+        if (dev->set_selected_machine(bound_dev_id)) {
+            MachineObject* selected = dev->get_selected_machine();
+            if (selected)
+                return selected;
+        }
+    }
+
+    return machine_it->second;
+}
+
 bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool force_printer_select)
 {
-    MachineObject *obj = wxGetApp().getDeviceManager()->get_selected_machine();
+    DeviceManager* dev = wxGetApp().getDeviceManager();
+    MachineObject *obj = dev ? dev->get_selected_machine() : nullptr;
+    if (!force_printer_select) {
+        if (MachineObject* bound_obj = select_bound_physical_printer(dev))
+            obj = bound_obj;
+    }
     auto           printer_name = plater->get_selected_printer_name_in_combox();
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << __LINE__ << " begin sync_extruder_list";
     if (obj == nullptr || !obj->is_online() || force_printer_select) {
         // Show printer selection dialog instead of redirecting to Device tab
-        DeviceManager* dev = wxGetApp().getDeviceManager();
         if (!dev) {
             plater->pop_warning_and_go_to_device_page(printer_name, Plater::PrinterWarningType::NOT_CONNECTED, _L("Sync printer information"));
             return false;
@@ -4515,7 +4547,10 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
 {
     wxBusyCursor cursor;
     // Force load ams list
-    auto obj = wxGetApp().getDeviceManager()->get_selected_machine();
+    DeviceManager* dev = wxGetApp().getDeviceManager();
+    auto obj = dev ? dev->get_selected_machine() : nullptr;
+    if (MachineObject* bound_obj = select_bound_physical_printer(dev))
+        obj = bound_obj;
     if (obj)
         GUI::wxGetApp().sidebar().load_ams_list(obj);
 
@@ -4527,7 +4562,6 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
         }
 
         // Show printer selection dialog instead of redirecting to Device tab
-        DeviceManager* dev = wxGetApp().getDeviceManager();
         if (!dev) return;
 
         std::map<std::string, MachineObject*> machine_map = dev->get_my_machine_list();
