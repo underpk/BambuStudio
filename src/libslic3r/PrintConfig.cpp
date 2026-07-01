@@ -1581,7 +1581,9 @@ void PrintConfigDef::init_fff_params()
     def->label = L("Brim type");
     def->category = L("Support");
     def->tooltip = L("This controls the generation of the brim at outer and/or inner side of models. "
-                     "Auto means the brim width is analysed and calculated automatically.");
+                     "Auto means the brim width is analysed and calculated automatically. "
+                     "Brim Ears places brim only at convex corners for minimal material use with good adhesion. "
+                     "Use the Brim Ears gizmo to manually place ears, or leave empty for automatic corner detection.");
     def->enum_keys_map = &ConfigOptionEnum<BrimType>::get_enum_values();
     def->enum_values.emplace_back("auto_brim");
     def->enum_values.emplace_back("brim_ears");
@@ -1594,7 +1596,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.emplace_back("no_brim");
 
     def->enum_labels.emplace_back(L("Auto"));
-    def->enum_labels.emplace_back(L("Painted"));
+    def->enum_labels.emplace_back(L("Brim Ears"));
     def->enum_labels.emplace_back(L("Outer brim only"));
 #if 1 //!BBL_RELEASE_TO_PUBLIC
     // BBS: The following two types are disabled
