@@ -258,6 +258,7 @@ public:
     bool get_is_double_extruder();
     bool is_dirty_filament();
     bool is_need_show();
+    void select_override_mode();
     void set_check_dirty_fialment(bool flag) { m_check_dirty_fialment = flag; };
 
 private:

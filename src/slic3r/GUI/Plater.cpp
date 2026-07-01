@@ -4543,7 +4543,7 @@ void Sidebar::load_ams_list(MachineObject* obj)
     p->combo_printer->update();
 }
 
-void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
+void Sidebar::sync_ams_list(bool is_from_big_sync_btn, bool auto_overwrite)
 {
     wxBusyCursor cursor;
     // Force load ams list
@@ -4655,7 +4655,13 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn)
             dynamic_filament_list.update();
         }
         m_sync_dlg->set_check_dirty_fialment(false);
-        dlg_res = m_sync_dlg->ShowModal();
+        if (auto_overwrite) {
+            m_sync_dlg->select_override_mode();
+            m_sync_dlg->deal_ok();
+            dlg_res = (int) wxID_YES;
+        } else {
+            dlg_res = m_sync_dlg->ShowModal();
+        }
     } else {
         dlg_res =(int) wxID_YES;
     }
@@ -12117,7 +12123,7 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
                             auto ok = GUI::wxGetApp().sidebar().sync_extruder_list();
                             if (ok) {
                                 // Auto-sync filaments too (skip the confirmation dialog)
-                                GUI::wxGetApp().sidebar().sync_ams_list(true);
+                                GUI::wxGetApp().sidebar().sync_ams_list(true, true);
                             }
                             delete timer;
                         });

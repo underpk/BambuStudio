@@ -255,6 +255,15 @@ bool SyncAmsInfoDialog::is_need_show()
     return true;
 }
 
+void SyncAmsInfoDialog::select_override_mode()
+{
+    auto mode = PageType::ptOverride;
+    if (m_pages)
+        m_pages->ChangeSelection(0);
+    update_panel_status(mode);
+    update_when_change_map_mode(mode);
+}
+
 wxBoxSizer *SyncAmsInfoDialog::create_sizer_thumbnail(wxButton *image_button, bool left)
 {
     auto sizer_thumbnail = new wxBoxSizer(wxVERTICAL);
