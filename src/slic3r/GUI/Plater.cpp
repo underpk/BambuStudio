@@ -2111,7 +2111,7 @@ bool Sidebar::priv::sync_extruder_list(bool &only_external_material, bool force_
     if (extruder_nums > 1) {
         auto fila_switch = obj->GetFilaSwitch();
         if (fila_switch->IsInstalled()) {
-            show_filament_switcher_dialog(fila_switch->IsReady(), is_manual);
+            show_filament_switcher_dialog(fila_switch->IsReady(), force_printer_select);
         } else {
             fila_switch_warning_shown = false;
         }
