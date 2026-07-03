@@ -428,12 +428,23 @@ namespace Slic3r
             std::vector<std::vector<int>> group_filaments(2);
             std::vector<std::vector<Color>>group_colors(2);
 
+            // The map may be shorter than the filament count or hold invalid nozzle ids
+            // (unassigned filaments are -1, see full_evaluate()); skip such candidates
+            // instead of reading nozzle_list out of bounds.
+            bool valid_map = true;
             for (size_t i = 0; i < used_filaments.size(); ++i) {
-                auto &nozzle       = nozzle_list[filament_to_nozzle[used_filaments[i]]];
+                int nozzle_id = used_filaments[i] < filament_to_nozzle.size() ? filament_to_nozzle[used_filaments[i]] : -1;
+                if (nozzle_id < 0 || nozzle_id >= (int) nozzle_list.size()) {
+                    valid_map = false;
+                    break;
+                }
+                auto &nozzle       = nozzle_list[nozzle_id];
                 int   target_group = nozzle.extruder_id == 0 ? 0 : 1;
                 group_colors[target_group].emplace_back(used_filament_info[i].color);
                 group_filaments[target_group].emplace_back(i);
             }
+            if (!valid_map)
+                continue;
 
             int group_cost = 0;
             for (size_t i = 0; i < 2; ++i) {
@@ -488,6 +499,10 @@ namespace Slic3r
                 best_map  = filament_to_nozzle;
             }
         }
+
+        // All candidates invalid: fall back to the freshly computed min-flush group (first entry).
+        if (best_map.empty() && !filament_to_nozzles.empty())
+            best_map = filament_to_nozzles.front();
 
         return best_map;
     }

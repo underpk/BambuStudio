@@ -1628,6 +1628,10 @@ namespace Slic3r
         filament_sequences->clear();
         filament_sequences->resize(layer_filaments.size());
 
+        // No filament received a nozzle assignment (incomplete grouping result), nothing to sequence.
+        if (extruders.empty())
+            return cost;
+
         auto get_extruder_for_filament = [nozzle_group_result](unsigned int filament_idx) {
             auto nozzle = nozzle_group_result.get_nozzle_for_filament(filament_idx, -1);
             if (!nozzle)
@@ -1639,7 +1643,10 @@ namespace Slic3r
             auto nozzle = nozzle_group_result.get_nozzle_for_filament(filament_idx, -1);
             if (!nozzle)
                 return -1;
-            return std::find(nozzles_per_extruder.at(nozzle->extruder_id).begin(), nozzles_per_extruder.at(nozzle->extruder_id).end(), nozzle->group_id) - nozzles_per_extruder.at(nozzle->extruder_id).begin();
+            auto it = nozzles_per_extruder.find(nozzle->extruder_id);
+            if (it == nozzles_per_extruder.end())
+                return -1;
+            return std::find(it->second.begin(), it->second.end(), nozzle->group_id) - it->second.begin();
             };
 
         int initial_extruder = initial_status.get_current_extruder_id();
@@ -1663,7 +1670,13 @@ namespace Slic3r
                     last_extruder_idx = get_extruder_for_filament(out_seq.back());
                     for (auto filament : out_seq) {
                         int cur_ext_id = get_extruder_for_filament(filament);
-                        last_nozzle_idx[cur_ext_id] = get_nozzle_idx_for_filament(filament);
+                        // A filament without a nozzle assignment (e.g. an unmapped support filament)
+                        // must not index the state arrays.
+                        if (cur_ext_id < 0 || cur_ext_id >= (int) last_nozzle_idx.size())
+                            continue;
+                        int nozzle_idx = get_nozzle_idx_for_filament(filament);
+                        if (nozzle_idx >= 0)
+                            last_nozzle_idx[cur_ext_id] = nozzle_idx;
                     }
                 }
                 continue;
@@ -1685,7 +1698,10 @@ namespace Slic3r
                 for (int j = 0; j < base_nozzles.size(); ++j) {
                     int nozzle_idx = (last_nozzle_idx[extruder_id] + j) % base_nozzles.size();
                     int nozzle_id = base_nozzles[nozzle_idx];
-                    const auto& frag = nozzle_filament_sequences[nozzle_id][layer];
+                    auto seq_it = nozzle_filament_sequences.find(nozzle_id);
+                    if (seq_it == nozzle_filament_sequences.end() || layer >= seq_it->second.size())
+                        continue;
+                    const auto& frag = seq_it->second[layer];
                     if (frag.empty())
                         continue;
                     has_seq = true;
