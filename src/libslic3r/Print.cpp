@@ -2858,6 +2858,13 @@ void Print::update_filament_maps_to_config(std::vector<int> f_maps, std::vector<
         const std::string               filament_prefix       = "filament_";
         t_config_option_keys            print_diff;
         DynamicPrintConfig              filament_overrides;
+        // Use the same 0-based extruder indices as the apply time override computation in
+        // print_config_diffs(). Indexing by extruder variant (filament_map_2) here produces
+        // different override values, which makes every subsequent apply see a diff in the
+        // retract keys and invalidate the freshly sliced result over and over.
+        std::vector<int> override_map_indices(f_maps.size(), 0);
+        for (size_t i = 0; i < f_maps.size(); ++i)
+            override_map_indices[i] = f_maps[i] - 1;
         for (auto& opt_key: extruder_retract_keys)
         {
             const ConfigOption *opt_new_filament = m_full_print_config.option(filament_prefix + opt_key);
@@ -2865,7 +2872,7 @@ void Print::update_filament_maps_to_config(std::vector<int> f_maps, std::vector<
             const ConfigOption *opt_old_machine = m_config.option(opt_key);
 
             if (opt_new_filament)
-                compute_filament_override_value(opt_key, opt_old_machine, opt_new_machine, opt_new_filament, m_full_print_config, print_diff, filament_overrides, m_config.filament_map_2.values);
+                compute_filament_override_value(opt_key, opt_old_machine, opt_new_machine, opt_new_filament, m_full_print_config, print_diff, filament_overrides, override_map_indices);
         }
 
         if ((extruder_count > 1) || support_multi) {
@@ -2917,6 +2924,10 @@ void Print::update_to_config_by_nozzle_group_result(const MultiNozzleUtils::Nozz
     const std::string               filament_prefix       = "filament_";
     t_config_option_keys            print_diff;
     DynamicPrintConfig              filament_overrides;
+    // Same 0-based extruder indexing as print_config_diffs(), see update_filament_maps_to_config().
+    std::vector<int> override_map_indices(m_config.filament_map.values.size(), 0);
+    for (size_t i = 0; i < m_config.filament_map.values.size(); ++i)
+        override_map_indices[i] = m_config.filament_map.values[i] - 1;
     for (auto &opt_key : extruder_retract_keys) {
         const ConfigOption *opt_new_filament = m_full_print_config.option(filament_prefix + opt_key);
         const ConfigOption *opt_new_machine  = m_full_print_config.option(opt_key);
@@ -2924,7 +2935,7 @@ void Print::update_to_config_by_nozzle_group_result(const MultiNozzleUtils::Nozz
 
         if (opt_new_filament)
             compute_filament_override_value(opt_key, opt_old_machine, opt_new_machine, opt_new_filament, m_full_print_config, print_diff, filament_overrides,
-                                            m_config.filament_map_2.values);
+                                            override_map_indices);
     }
 
     t_config_option_keys keys(filament_options_with_variant.begin(), filament_options_with_variant.end());
