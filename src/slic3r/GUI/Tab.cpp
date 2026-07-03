@@ -3076,6 +3076,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("monotonic_travel_into_wall");
         optgroup->append_single_option_line("infill_direction","parameter/strength-advance-settings");
         optgroup->append_single_option_line("bridge_angle","parameter/strength-advance-settings");
+        optgroup->append_single_option_line("split_external_bridges","parameter/strength-advance-settings");
         optgroup->append_single_option_line("minimum_sparse_infill_area","parameter/strength-advance-settings");
         optgroup->append_single_option_line("infill_combination","parameter/strength-advance-settings");
         optgroup->append_single_option_line("detect_narrow_internal_solid_infill","parameter/strength-advance-settings");

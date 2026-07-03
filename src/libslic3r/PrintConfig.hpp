@@ -1032,6 +1032,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt, bottom_shell_layers))
     ((ConfigOptionFloat, bottom_shell_thickness))
     ((ConfigOptionFloat, bridge_angle))
+    ((ConfigOptionBool, split_external_bridges))
     ((ConfigOptionFloat, bridge_flow))
     ((ConfigOptionPercent, bridge_density))
     ((ConfigOptionPercent, internal_bridge_density))
