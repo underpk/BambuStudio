@@ -2553,7 +2553,8 @@ unsigned int PresetBundle::sync_ams_list(std::vector<std::pair<DynamicPrintConfi
                                          std::map<int, AMSMapInfo> &                                maps,
                                          bool                                                       enable_append,
                                          MergeFilamentInfo &                                        merge_info,
-                                         bool                                                       skip_ext)
+                                         bool                                                       skip_ext,
+                                         bool                                                       keep_extra_slots)
 {
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << "use_map:" << use_map << " enable_append:" << enable_append;
     std::vector<std::string> ams_filament_presets;
@@ -2847,18 +2848,34 @@ unsigned int PresetBundle::sync_ams_list(std::vector<std::pair<DynamicPrintConfi
         filament_map->values.resize(exist_filament_presets.size(), 1);
     }
     else {//overwrite;
+        std::vector<std::string> prev_presets     = this->filament_presets;
+        std::vector<std::string> prev_colors      = filament_color->values;
+        std::vector<std::string> prev_color_types = filament_color_type->values;
+
         filament_color->values = ams_filament_colors;
         filament_color_type->values = ams_filament_color_types;
         this->filament_presets = ams_filament_presets;
-        filament_map->values.resize(ams_filament_colors.size(), 1);
+
+        if (keep_extra_slots) {
+            // Keep project filament slots beyond what the AMS provides (e.g. a dedicated
+            // support filament), so a silent auto sync cannot drop filaments that prints
+            // or supports still reference.
+            for (size_t i = this->filament_presets.size(); i < prev_presets.size(); ++i) {
+                this->filament_presets.push_back(prev_presets[i]);
+                filament_color->values.push_back(i < prev_colors.size() ? prev_colors[i] : "#FFFFFF");
+                filament_color_type->values.push_back(i < prev_color_types.size() ? prev_color_types[i] : "1");
+                ams_multi_color_filment.push_back({filament_color->values.back()});
+            }
+        }
+        filament_map->values.resize(this->filament_presets.size(), 1);
 
         auto& print_config = this->prints.get_edited_preset().config;
         auto  support_filament_opt = print_config.option<ConfigOptionInt>("support_filament");
         auto support_interface_filament_opt = print_config.option<ConfigOptionInt>("support_interface_filament");
-        if (support_filament_opt->value > ams_filament_color_types.size())
+        if (support_filament_opt->value > (int) this->filament_presets.size())
             support_filament_opt->value = 0;
 
-        if (support_interface_filament_opt->value > ams_filament_color_types.size())
+        if (support_interface_filament_opt->value > (int) this->filament_presets.size())
             support_interface_filament_opt->value = 0;
     }
 

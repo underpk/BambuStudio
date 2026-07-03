@@ -729,6 +729,9 @@ struct Sidebar::priv
     bool                    is_switching_diameter{false};
     Search::OptionsSearcher     searcher;
     std::string ams_list_device;
+    // Device id of the last successful AMS filament sync. Extra (non-AMS) filament slots are
+    // only preserved when re-syncing the same machine; switching machines replaces the list.
+    std::string last_ams_synced_device;
 
     // Mixed Filament sidebar controls
     wxPanel*          m_btn_add_mixed_filament{nullptr};   // "+ 添加混色" full-width button
@@ -4714,7 +4717,13 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn, bool auto_overwrite)
     MergeFilamentInfo merge_info;
     std::vector<std::pair<DynamicPrintConfig *,std::string>> unknowns;
     auto enable_append = wxGetApp().app_config->get_bool("enable_append_color_by_sync_ams");
-    auto     n = wxGetApp().preset_bundle->sync_ams_list(unknowns, !sync_result.direct_sync, sync_result.sync_maps, enable_append, merge_info, skip_ext);
+    // When re-syncing the SAME machine, keep project filament slots beyond the AMS tray
+    // count (e.g. a dedicated support filament) — dropping them would reset support
+    // filament settings and invalidate a sliced plate. When a DIFFERENT machine was
+    // selected, the filament list is fully replaced by the new machine's AMS.
+    const bool same_device = obj != nullptr && obj->get_dev_id() == p->last_ams_synced_device;
+    auto     n = wxGetApp().preset_bundle->sync_ams_list(unknowns, !sync_result.direct_sync, sync_result.sync_maps, enable_append, merge_info, skip_ext,
+                                                         /*keep_extra_slots=*/same_device);
     wxString detail;
     for (auto & uk : unknowns) {
         auto tray_name     = uk.first->opt_string("tray_name", 0u);
@@ -4728,6 +4737,8 @@ void Sidebar::sync_ams_list(bool is_from_big_sync_btn, bool auto_overwrite)
         dlg.ShowModal();
         return;
     }
+    if (obj)
+        p->last_ams_synced_device = obj->get_dev_id();
     ams_filament_ids = boost::algorithm::join(list2, ",");
     wxGetApp().app_config ->set("ams_filament_ids", p->ams_list_device, ams_filament_ids);
     if (!unknowns.empty()) {
@@ -12114,20 +12125,46 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
                         if (!current || current->get_dev_id() != bound_dev_id) {
                             dev->set_selected_machine(bound_dev_id);
                         }
-                        // Auto-sync after connecting — use a timer to wait for connection
-                        auto timer = new wxTimer();
-                        timer->Bind(wxEVT_TIMER, [timer](wxTimerEvent&) {
-                            timer->Stop();
-                            // Sync nozzle info
-                            bool only_external;
-                            auto ok = GUI::wxGetApp().sidebar().sync_extruder_list();
-                            if (ok) {
-                                // Auto-sync filaments too (skip the confirmation dialog)
-                                GUI::wxGetApp().sidebar().sync_ams_list(true, true);
-                            }
-                            delete timer;
-                        });
-                        timer->StartOnce(2000); // 2 seconds for connection to establish
+                        // Auto-sync only once per bound printer: a re-selection of the same preset
+                        // (which also happens as a side effect of the sync itself) must not re-run
+                        // the silent sync, or it would invalidate a freshly sliced plate.
+                        // The guard is set at arm time (prevents parallel timers) and cleared if the
+                        // machine never becomes ready, so a later selection can retry.
+                        static std::string last_auto_synced_dev_id;
+                        if (last_auto_synced_dev_id != bound_dev_id) {
+                            last_auto_synced_dev_id = bound_dev_id;
+                            // Auto-sync after connecting — retry until the machine is online and its
+                            // AMS data has actually arrived, otherwise the sync would silently run
+                            // against the previously selected machine's cached filament list.
+                            auto timer    = new wxTimer();
+                            auto attempts = std::make_shared<int>(0);
+                            timer->Bind(wxEVT_TIMER, [timer, attempts, bound_dev_id](wxTimerEvent&) {
+                                timer->Stop();
+                                Slic3r::DeviceManager *dev = Slic3r::GUI::wxGetApp().getDeviceManager();
+                                MachineObject *obj = dev ? dev->get_selected_machine() : nullptr;
+                                bool ready = obj && obj->get_dev_id() == bound_dev_id && obj->is_online()
+                                          && obj->GetFilaSystem() && obj->GetFilaSystem()->HasAms();
+                                if (!ready) {
+                                    if (++(*attempts) < 10) { // keep trying for ~20s
+                                        timer->StartOnce(2000);
+                                        return;
+                                    }
+                                    // Give up; allow a later preset selection to retry.
+                                    last_auto_synced_dev_id.clear();
+                                    delete timer;
+                                    return;
+                                }
+                                // Sync nozzle info
+                                bool only_external;
+                                auto ok = GUI::wxGetApp().sidebar().sync_extruder_list();
+                                if (ok) {
+                                    // Auto-sync filaments too (skip the confirmation dialog)
+                                    GUI::wxGetApp().sidebar().sync_ams_list(true, true);
+                                }
+                                delete timer;
+                            });
+                            timer->StartOnce(2000); // 2 seconds for connection to establish
+                        }
                     }
                 }
             }

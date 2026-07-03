@@ -248,7 +248,8 @@ public:
                                std::map<int, AMSMapInfo> &                                maps,
                                bool                                                       enable_append,
                                MergeFilamentInfo &                                        merge_info,
-                               bool                                                       skip_ext = false);
+                               bool                                                       skip_ext = false,
+                               bool                                                       keep_extra_slots = false);
     //BBS: check whether this is the only edited filament
     bool is_the_only_edited_filament(unsigned int filament_index);
 
