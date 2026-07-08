@@ -101,7 +101,6 @@ FileTransferJob::FileTransferJob(FileTransferModule &m, const std::string &param
             self->solve_result(r);
 
             if (self->result_cb_) self->result_cb_(self->res_, self->resp_ec_, self->res_json_, self->res_bin_);
-            self->m_->ft_job_result_destroy(&r);
         } catch (...) {
             // swallow
         }

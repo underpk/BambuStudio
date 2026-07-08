@@ -919,6 +919,17 @@ void MediaPlayCtrl::start_device_image_flow()
             return false;
         }
 
+        // Only hand well-formed JPEG/PNG data to wxImage; anything else is a
+        // truncated or corrupt frame from the device
+        auto byte_at = [&data](size_t i) { return std::to_integer<unsigned char>(data[i]); };
+        bool is_jpeg = data.size() >= 3 && byte_at(0) == 0xFF && byte_at(1) == 0xD8 && byte_at(2) == 0xFF;
+        bool is_png  = data.size() >= 8 && byte_at(0) == 0x89 && byte_at(1) == 0x50 && byte_at(2) == 0x4E && byte_at(3) == 0x47;
+        if (!is_jpeg && !is_png) {
+            BOOST_LOG_TRIVIAL(warning) << "DeviceImageFlow: data is not a JPEG/PNG image, skip (" << mode_to_string(mode)
+                                       << ", size " << data.size() << ")";
+            return false;
+        }
+
         wxMemoryInputStream stream(data.data(), data.size());
         wxImage image(stream, wxBITMAP_TYPE_ANY);
 
