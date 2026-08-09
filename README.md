@@ -20,9 +20,6 @@ the Releases page.
 
 ### New in v2.0.0
 
-- **Multi-angle external bridges** - Long external bridges are split into
-  separate regions, each solved at its own anchor angle. Toggle with
-  `split_external_bridges`
 - **Virtual printer CA certificate** - LAN-mode TLS validation against the
   virtual printer now succeeds on all platforms
 - **AMS auto-sync fixes** - Sync no longer silently drops support filament,
