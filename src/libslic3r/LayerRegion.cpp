@@ -339,234 +339,10 @@ void detect_bridge_directions(
     }
 }
 
-struct BridgeAngleScore {
-    double    total_good = 0.;   // Summed length of "good" test lines: anchored at both endpoints and not exceeding the span cap.
-    double    max_span   = 0.;   // Longest test line regardless of anchoring, the printability metric.
-    std::vector<coord_t> good_offsets; // Rotated frame offsets of the good lines, only filled when collect_lines is set.
-    BoundingBox          rot_bbox;     // Extents of the clipped area in the rotated frame.
-};
-
-// Rasterize the bridge area with test lines along the given angle and classify them by anchoring
-// and length, mirroring the visibility check of BridgeDetector::detect_angle().
-static BridgeAngleScore score_bridge_angle(
-    const ExPolygons &area,
-    ExPolygons &anchors,
-    const double angle,
-    const coord_t spacing,
-    const double span_cap,
-    const bool collect_lines
-) {
-    BridgeAngleScore out;
-    /*  Outset the bridge expolygons by half the spacing used for detecting anchors;
-        we'll use this one to clip our test lines and be sure that their endpoints
-        are inside the anchors and not on their contours leading to false negatives. */
-    Polygons clip_area = offset(area, 0.5f * float(spacing));
-    if (clip_area.empty())
-        return out;
-
-    double s = sin(angle);
-    double c = cos(angle);
-    BoundingBox bbox = get_extents_rotated(clip_area, - angle);
-    out.rot_bbox = bbox;
-    Lines lines;
-    lines.reserve((bbox.max(1) - bbox.min(1) + spacing) / spacing);
-    for (coord_t y = bbox.min(1); y <= bbox.max(1); y += spacing)
-        lines.push_back(Line(
-            Point((coord_t)round(c * bbox.min(0) - s * y), (coord_t)round(c * y + s * bbox.min(0))),
-            Point((coord_t)round(c * bbox.max(0) - s * y), (coord_t)round(c * y + s * bbox.max(0)))));
-
-    for (const Line &line : intersection_ln(lines, clip_area)) {
-        double len = line.length();
-        out.max_span = std::max(out.max_span, len);
-        if (len <= span_cap && expolygons_contain(anchors, line.a) && expolygons_contain(anchors, line.b)) {
-            out.total_good += len;
-            if (collect_lines) {
-                // Recover the rotated frame offset of the source line, snapped to the generation grid.
-                coord_t y = coord_t(round(c * line.a.y() - s * line.a.x()));
-                out.good_offsets.push_back(bbox.min(1) + coord_t(round(double(y - bbox.min(1)) / spacing)) * spacing);
-            }
-        }
-    }
-    return out;
-}
-
-// Brute force the bridging angle maximizing the coverage by good (anchored, short enough) lines,
-// using the same 5 degree resolution and a tie-break rule similar to BridgeDetector::detect_angle().
-static std::optional<double> best_anchored_angle(
-    const ExPolygons &area,
-    ExPolygons &anchors,
-    const coord_t spacing,
-    const double span_cap
-) {
-    constexpr int steps = 36;
-    struct Candidate { double angle; BridgeAngleScore score; };
-    std::vector<Candidate> candidates;
-    for (int i = 0; i < steps; ++ i) {
-        double angle = i * (PI / steps);
-        BridgeAngleScore score = score_bridge_angle(area, anchors, angle, spacing, span_cap, false);
-        if (score.total_good > 0.)
-            candidates.push_back({ angle, std::move(score) });
-    }
-    if (candidates.empty())
-        return std::nullopt;
-    std::sort(candidates.begin(), candidates.end(),
-        [](const Candidate &l, const Candidate &r) { return l.score.total_good > r.score.total_good; });
-    // If any other direction is within extrusion width of coverage, prefer it if its worst span is shorter.
-    size_t i_best = 0;
-    for (size_t i = 1; i < candidates.size() && candidates[i_best].score.total_good - candidates[i].score.total_good < spacing; ++ i)
-        if (candidates[i].score.max_span < candidates[i_best].score.max_span)
-            i_best = i;
-    return candidates[i_best].angle;
-}
-
-// Produce bridge surfaces for a merged bridge group. Normally emits one surface per expolygon with
-// the single detected angle. When that angle produces excessively long bridge lines (e.g. an
-// annular bridge, where lines near-tangent to the ring span a long chord while radial crossings
-// are short), the region is split into sub-regions, each bridged along its own best direction.
-static Surfaces make_bridge_surfaces(
-    ExPolygons &&bridge_area,
-    const ExPolygons *lower_slices,
-    const double default_angle,
-    const coord_t spacing
-) {
-    auto emit = [](ExPolygons &&expolygons, double angle, Surfaces &out) {
-        Surface templ{ stBottomBridge, {} };
-        templ.bridge_angle = angle;
-        for (ExPolygon &ex : expolygons)
-            out.emplace_back(templ, std::move(ex));
-    };
-    auto emit_single = [&]() {
-        Surfaces out;
-        emit(std::move(bridge_area), default_angle, out);
-        return out;
-    };
-    if (lower_slices == nullptr || lower_slices->empty() || bridge_area.empty() || default_angle < 0)
-        return emit_single();
-    // The anchors are the lower layer material in the vicinity of the bridge,
-    // the same anchor definition as BridgeDetector::initialize().
-    ExPolygons anchors = intersection_ex(offset(bridge_area, 2.f * float(spacing)), *lower_slices);
-    if (anchors.empty())
-        return emit_single();
-
-    // Quality gate: split only when the single angle produces a bridge line longer than what is
-    // considered printable (10mm, in line with the support module's max_bridge_length default).
-    constexpr double infinite_span = std::numeric_limits<double>::max();
-    const double bad_span = scaled<double>(10.);
-    const double gate_span = score_bridge_angle(bridge_area, anchors, default_angle, spacing, infinite_span, false).max_span;
-    if (gate_span < bad_span)
-        return emit_single();
-
-    // Iteratively carve out the area covered by good (anchored, short enough) lines along the best
-    // direction, then re-detect on the rest.
-    constexpr size_t max_sub_regions = 4;
-    const double span_cap = std::max(bad_span, 0.5 * gate_span);
-    const double min_sub_area = sqr(scaled<double>(2.));
-    ExPolygons remaining = bridge_area;
-    std::vector<std::pair<double, ExPolygons>> subs;
-    for (size_t i = 0; i < max_sub_regions && ! remaining.empty(); ++ i) {
-        std::optional<double> angle = best_anchored_angle(remaining, anchors, spacing, span_cap);
-        if (! angle)
-            break;
-        BridgeAngleScore score = score_bridge_angle(remaining, anchors, *angle, spacing, span_cap, true);
-        if (score.good_offsets.empty())
-            break;
-        // Convert runs of adjacent good lines into straight strips parallel to the bridging
-        // direction. Straight strip boundaries keep the seams between sub-regions free of
-        // sawtooth slivers that would otherwise be filled with gap infill hanging in the air.
-        std::sort(score.good_offsets.begin(), score.good_offsets.end());
-        score.good_offsets.erase(std::unique(score.good_offsets.begin(), score.good_offsets.end()), score.good_offsets.end());
-        Polygons strips;
-        {
-            double  s  = sin(*angle);
-            double  c  = cos(*angle);
-            coord_t x0 = score.rot_bbox.min(0) - spacing;
-            coord_t x1 = score.rot_bbox.max(0) + spacing;
-            auto emit_strip = [&](coord_t lo, coord_t hi) {
-                lo -= spacing / 2;
-                hi += spacing / 2;
-                Polygon poly;
-                for (const Point &p : { Point(x0, lo), Point(x1, lo), Point(x1, hi), Point(x0, hi) })
-                    poly.points.emplace_back(coord_t(round(c * p.x() - s * p.y())), coord_t(round(c * p.y() + s * p.x())));
-                strips.emplace_back(std::move(poly));
-            };
-            coord_t lo = score.good_offsets.front(), prev = lo;
-            for (coord_t o : score.good_offsets) {
-                if (o - prev > coord_t(1.5 * spacing)) {
-                    emit_strip(lo, prev);
-                    lo = o;
-                }
-                prev = o;
-            }
-            emit_strip(lo, prev);
-        }
-        ExPolygons covered = intersection_ex(strips, to_polygons(remaining));
-        // A strip may pick up a disconnected piece that had no good lines of its own
-        // (e.g. the opposite side of a ring); keep only pieces printable at this angle.
-        covered.erase(std::remove_if(covered.begin(), covered.end(),
-            [&](const ExPolygon &ex) {
-                if (ex.area() < min_sub_area)
-                    return true;
-                ExPolygons one{ ex };
-                return score_bridge_angle(one, anchors, *angle, spacing, infinite_span, false).max_span > 1.25 * span_cap;
-            }), covered.end());
-        if (covered.empty())
-            break;
-        remaining = diff_ex(remaining, covered);
-        remaining.erase(std::remove_if(remaining.begin(), remaining.end(),
-            [min_sub_area](const ExPolygon &ex) { return ex.area() < min_sub_area; }), remaining.end());
-        subs.emplace_back(*angle, std::move(covered));
-    }
-    if (subs.empty())
-        return emit_single();
-
-    // Gap-free reassembly: whatever was not assigned to a sub-region (scraps below min_sub_area,
-    // unfinished remainder) merges into the touching sub-region, so the union of the emitted
-    // surfaces equals the input bridge area exactly.
-    ExPolygons assigned;
-    for (const auto &sub : subs)
-        append(assigned, sub.second);
-    for (ExPolygon &lo : diff_ex(bridge_area, assigned)) {
-        Polygons lo_grown = offset(lo, float(spacing));
-        size_t best = 0;
-        double best_contact = -1.;
-        for (size_t i = 0; i < subs.size(); ++ i) {
-            double contact = 0.;
-            for (const Polygon &p : intersection(lo_grown, to_polygons(subs[i].second)))
-                contact += p.area();
-            if (contact > best_contact) {
-                best_contact = contact;
-                best = i;
-            }
-        }
-        if (best_contact <= 0.)
-            // No contact at all, attach to the largest sub-region.
-            best = std::max_element(subs.begin(), subs.end(), [](const auto &l, const auto &r) {
-                    return area(l.second) < area(r.second);
-                }) - subs.begin();
-        subs[best].second.emplace_back(std::move(lo));
-        subs[best].second = union_ex(subs[best].second);
-    }
-
-    // Keep the split only when it measurably improves on the single angle, measured on the final
-    // sub-regions including the merged leftovers.
-    double worst_after = 0.;
-    for (const auto &[angle, region] : subs)
-        worst_after = std::max(worst_after, score_bridge_angle(region, anchors, angle, spacing, infinite_span, false).max_span);
-    if (worst_after > 0.6 * gate_span)
-        return emit_single();
-
-    Surfaces out;
-    for (auto &[angle, region] : subs)
-        emit(std::move(region), angle, out);
-    return out;
-}
-
 Surfaces merge_bridges(
     std::vector<Bridge>& bridges,
     const std::vector<Algorithm::RegionExpansionEx>& bridge_expansions,
-    const float closing_radius,
-    const ExPolygons *lower_slices,
-    const coord_t bridge_spacing
+    const float closing_radius
 ) {
     for (auto it = bridge_expansions.begin(); it != bridge_expansions.end(); ) {
         bridges[it->src_id].bridge_expansion_begin = it;
@@ -587,19 +363,20 @@ Surfaces merge_bridges(
                     for (; it_bridge_expansion != bridge_expansions.end() && it_bridge_expansion->src_id == bridge_id2; ++ it_bridge_expansion)
                         append(acc, to_polygons(it_bridge_expansion->expolygon));
                 }
+            //FIXME try to be smart and pick the best bridging angle for all?
             if (!bridges[bridge_id].angle) {
                 assert(false && "Bridge angle must be pre-calculated!");
             }
+            Surface templ{ stBottomBridge, {} };
+            templ.bridge_angle = bridges[bridge_id].angle ? *bridges[bridge_id].angle : -1;
             //NOTE: The current regularization of the shells can create small unasigned regions in the object (E.G. benchy)
             // without the following closing operation, those regions will stay unfilled and cause small holes in the expanded surface.
             // look for narrow_ensure_vertical_wall_thickness_region_radius filter.
             ExPolygons final = closing_ex(acc, closing_radius);
             // without safety offset, artifacts are generated (GH #2494)
             // union_safety_offset_ex(acc)
-            append(result, make_bridge_surfaces(
-                std::move(final), lower_slices,
-                bridges[bridge_id].angle ? *bridges[bridge_id].angle : -1.,
-                bridge_spacing));
+            for (ExPolygon &ex : final)
+                result.emplace_back(templ, std::move(ex));
         }
     }
     return result;
@@ -653,9 +430,7 @@ ExpansionResult expand_expolygons(
 Surfaces expand_bridges_detect_orientations(
     Surfaces &surfaces,
     std::vector<ExpansionZone>& expansion_zones,
-    const float closing_radius,
-    const ExPolygons *lower_slices,
-    const coord_t bridge_spacing
+    const float closing_radius
 )
 {
     using namespace Slic3r::Algorithm;
@@ -684,7 +459,7 @@ Surfaces expand_bridges_detect_orientations(
     std::sort(expansion_result.expansions.begin(), expansion_result.expansions.end(), [](auto &l, auto &r) {
         return l.src_id < r.src_id || (l.src_id == r.src_id && l.boundary_id < r.boundary_id);
     });
-    Surfaces out{merge_bridges(bridges, expansion_result.expansions, closing_radius, lower_slices, bridge_spacing)};
+    Surfaces out{merge_bridges(bridges, expansion_result.expansions, closing_radius)};
 
     // Clip by the expanded bridges.
     for (ExpansionZone& expansion_zone : expansion_zones)
@@ -792,13 +567,9 @@ void LayerRegion::process_external_surfaces(const Layer *lower_layer, const Poly
     {
         BOOST_LOG_TRIVIAL(trace) << "Processing external surface, detecting bridges. layer" << this->layer()->print_z;
         const double custom_angle = this->region().config().bridge_angle.value;
-        const coord_t bridge_spacing = this->bridging_flow(frSolidInfill, this->layer()->object()->config().thick_bridges).scaled_spacing();
         bridges.surfaces = custom_angle > 0 ?
             expand_merge_surfaces(fill_surfaces.surfaces, stBottomBridge, expansion_zones, closing_radius, Geometry::deg2rad(custom_angle)) :
-            expand_bridges_detect_orientations(fill_surfaces.surfaces, expansion_zones, closing_radius,
-                // Bridge splitting is disabled by passing no lower slices to anchor on.
-                (this->region().config().split_external_bridges && lower_layer != nullptr) ? &lower_layer->lslices : nullptr,
-                bridge_spacing);
+            expand_bridges_detect_orientations(fill_surfaces.surfaces, expansion_zones, closing_radius);
         BOOST_LOG_TRIVIAL(trace) << "Processing external surface, detecting bridges - done";
 #if 0
         {

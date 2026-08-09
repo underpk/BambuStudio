@@ -1326,16 +1326,6 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(0.));
 
-    def = this->add("split_external_bridges", coBool);
-    def->label = L("Split long external bridges");
-    def->category = L("Strength");
-    def->tooltip = L("Automatically split an external bridge region into several regions with individual "
-                     "bridging directions when a single direction would produce overly long bridge lines, "
-                     "e.g. on ring shaped bridges. Only used when the bridge direction is calculated "
-                     "automatically (Bridge direction left at zero).");
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionBool(true));
-
     def = this->add("bridge_flow", coFloat);
     def->label = L("Bridge flow");
     def->category = L("Quality");

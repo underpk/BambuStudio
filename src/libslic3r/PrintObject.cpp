@@ -1248,7 +1248,6 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "infill_direction"
             || opt_key == "ensure_vertical_shell_thickness"
             || opt_key == "bridge_angle"
-            || opt_key == "split_external_bridges"
             //BBS
         ) {
             steps.emplace_back(posPrepareInfill);
