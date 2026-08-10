@@ -5,6 +5,33 @@
 
 # ==================== Node.js/pnpm 环境准备（仅用于 deviceweb 构建）====================
 
+# Download with retries. A single transient network fault (CI runners see
+# "Failure when receiving data from the peer" regularly) otherwise aborts the
+# whole configure step. Retries on any failure, including a hash mismatch from
+# a truncated transfer, removing the partial file between attempts.
+function(download_with_retry url dest expected_hash out_msg)
+    set(_attempts 3)
+    foreach(_try RANGE 1 ${_attempts})
+        file(DOWNLOAD
+            ${url}
+            "${dest}"
+            SHOW_PROGRESS
+            STATUS _dl_status
+            EXPECTED_HASH SHA256=${expected_hash}
+            TLS_VERIFY OFF
+        )
+        list(GET _dl_status 0 _dl_code)
+        list(GET _dl_status 1 _dl_msg)
+        if(_dl_code EQUAL 0)
+            set(${out_msg} "" PARENT_SCOPE)
+            return()
+        endif()
+        file(REMOVE "${dest}")
+        message(STATUS "Download attempt ${_try}/${_attempts} failed (${_dl_msg}): ${url}")
+    endforeach()
+    set(${out_msg} "${_dl_msg}" PARENT_SCOPE)
+endfunction()
+
 function(prepare_node_env)
     # 定义版本号
     set(NODE_VERSION "22.22.2")
@@ -65,18 +92,13 @@ function(prepare_node_env)
         message(STATUS "Downloading Node.js v${NODE_VERSION} from ${NODE_URL}")
         file(MAKE_DIRECTORY "${NODE_CACHE_DIR}")
 
-        file(DOWNLOAD
-            ${NODE_URL}
+        download_with_retry(
+            "${NODE_URL}"
             "${NODE_CACHE_DIR}/${NODE_ARCHIVE_NAME}"
-            SHOW_PROGRESS
-            STATUS node_dl_status
-            EXPECTED_HASH SHA256=${NODE_HASH}
-            TLS_VERIFY OFF
+            "${NODE_HASH}"
+            node_dl_msg
         )
-        list(GET node_dl_status 0 node_dl_code)
-        list(GET node_dl_status 1 node_dl_msg)
-        if(NOT node_dl_code EQUAL 0)
-            file(REMOVE "${NODE_CACHE_DIR}/${NODE_ARCHIVE_NAME}")
+        if(node_dl_msg)
             message(FATAL_ERROR "Failed to download Node.js: ${node_dl_msg}")
         endif()
 
@@ -120,18 +142,13 @@ function(prepare_node_env)
     if(NOT EXISTS "${PNPM_EXECUTABLE}")
         message(STATUS "Downloading pnpm v${PNPM_VERSION} from ${PNPM_URL}")
 
-        file(DOWNLOAD
-            ${PNPM_URL}
+        download_with_retry(
+            "${PNPM_URL}"
             "${PNPM_EXECUTABLE}"
-            SHOW_PROGRESS
-            STATUS pnpm_dl_status
-            EXPECTED_HASH SHA256=${PNPM_HASH}
-            TLS_VERIFY OFF
+            "${PNPM_HASH}"
+            pnpm_dl_msg
         )
-        list(GET pnpm_dl_status 0 pnpm_dl_code)
-        list(GET pnpm_dl_status 1 pnpm_dl_msg)
-        if(NOT pnpm_dl_code EQUAL 0)
-            file(REMOVE "${PNPM_EXECUTABLE}")
+        if(pnpm_dl_msg)
             message(FATAL_ERROR "Failed to download pnpm: ${pnpm_dl_msg}")
         endif()
 
