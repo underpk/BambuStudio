@@ -3387,12 +3387,31 @@ void PrintConfigDef::init_fff_params()
                      "And the fitting tolerance is the same as resolution");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(0));
+
+    // From OrcaSlicer
+    def = this->add("arc_fitting_sparse_infill_only", coBool);
+    def->label = L("Sparse infill only");
+    def->tooltip = L("Fit G2 and G3 arcs to the sparse infill only, which shortens the G-code of curved infill patterns "
+                     "such as Gyroid, while walls, surfaces, supports and the prime tower keep straight moves.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(0));
     // BBS
     def = this->add("gcode_add_line_number", coBool);
     def->label = L("Add line number");
     def->tooltip = L("Enable this to add line number(Nx) at the beginning of each G-Code line");
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionBool(0));
+
+    // From OrcaSlicer
+    def = this->add("high_precision_gcode", coBool);
+    def->label = L("High precision G-code (experimental)");
+    def->tooltip = L("Write X, Y, Z, I and J with 4 decimal places instead of 3, and E with 6 instead of 5, to reduce "
+                     "rounding errors in the G-code. With relative E distances, the rounding error of each move is also "
+                     "carried over to the next one. Supports are removed after printing, so they keep the standard "
+                     "precision. This may help stabilize extrusion with small nozzles (e.g. 0.2 mm) and "
+                     "thin layers (e.g. 0.08 mm or less). The G-code file becomes about 10 percent larger.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
 
     // BBS
     def = this->add("scan_first_layer", coBool);

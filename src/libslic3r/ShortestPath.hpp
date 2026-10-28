@@ -18,6 +18,9 @@ std::vector<size_t> 				 chain_expolygons(const ExPolygons &input_exploy);
 std::vector<std::pair<size_t, bool>> chain_extrusion_entities(std::vector<ExtrusionEntity*> &entities, const Point *start_near = nullptr);
 void                                 reorder_extrusion_entities(std::vector<ExtrusionEntity*> &entities, const std::vector<std::pair<size_t, bool>> &chain);
 void                                 chain_and_reorder_extrusion_entities(std::vector<ExtrusionEntity*> &entities, const Point *start_near = nullptr);
+// From OrcaSlicer: the greedy chain from start_near is refined by 2-opt and or-opt moves (exactly for up to 8 entities),
+// which shortens the travel at some extra cost. Used when exporting G-code.
+void                                 chain_and_reorder_extrusion_entities_refined(std::vector<ExtrusionEntity*> &entities, const Point &start_near);
 
 std::vector<std::pair<size_t, bool>> chain_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, const Point *start_near = nullptr);
 void                                 reorder_extrusion_paths(std::vector<ExtrusionPath> &extrusion_paths, std::vector<std::pair<size_t, bool>> &chain);

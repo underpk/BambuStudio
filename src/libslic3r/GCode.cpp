@@ -6402,11 +6402,16 @@ std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectBy
                     extrusions.emplace_back(ee);
             if (! extrusions.empty()) {
                 m_config.apply(print.get_print_region(&region - &by_region.front()).config());
-                chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
+                chain_and_reorder_extrusion_entities_refined(extrusions, m_last_pos);
                 for (const ExtrusionEntity *fill : extrusions) {
                     auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(fill);
                     if (eec) {
-                        for (ExtrusionEntity *ee : eec->chained_path_from(m_last_pos).entities)
+                        // A collection that keeps its order (monotonic, concentric...) prints as is; the paths of
+                        // the others are chained from the nozzle on a copy, so the layer stays unchanged.
+                        ExtrusionEntityCollection chained(*eec);
+                        if (! eec->no_sort)
+                            chain_and_reorder_extrusion_entities_refined(chained.entities, m_last_pos);
+                        for (ExtrusionEntity *ee : chained.entities)
                             gcode += this->extrude_entity(*ee, extrusion_name);
                     } else
                         gcode += this->extrude_entity(*fill, extrusion_name);
@@ -6422,6 +6427,11 @@ std::string GCode::extrude_support(const ExtrusionEntityCollection &support_fill
     static constexpr const char *support_interface_label  = "support material interface";
     static constexpr const char *support_transition_label = "support transition";
     static constexpr const char *support_ironing_label    = "support ironing";
+
+    // From OrcaSlicer: supports are removed after printing and gain nothing from high precision G-code but a larger
+    // file, so they are written with the standard precision.
+    const bool was_standard_precision = m_writer.force_standard_precision(true);
+    ScopeGuard restore_precision([this, was_standard_precision] { m_writer.force_standard_precision(was_standard_precision); });
 
     std::string gcode;
     if (! support_fills.entities.empty()) {
@@ -6440,11 +6450,11 @@ std::string GCode::extrude_support(const ExtrusionEntityCollection &support_fill
         if (extrusions.empty() && ironing_extrusions.empty()) return gcode;
         has_support_ironing = has_support_ironing && m_config.enable_support_ironing.value;
         if (has_support_ironing) {
-            chain_and_reorder_extrusion_entities(ironing_extrusions, &m_last_pos);
+            chain_and_reorder_extrusion_entities_refined(ironing_extrusions, m_last_pos);
         } else{
             ironing_extrusions.clear();
         }
-        chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
+        chain_and_reorder_extrusion_entities_refined(extrusions, m_last_pos);
 
         const double support_speed  = NOZZLE_CONFIG(support_speed);
         const double support_interface_speed = NOZZLE_CONFIG(support_interface_speed);

@@ -6,6 +6,7 @@
 #include "Geometry.hpp"
 #include "I18N.hpp"
 #include "Layer.hpp"
+#include "PerimeterGenerator.hpp"
 #include "MutablePolygon.hpp"
 #include "Support/SupportMaterial.hpp"
 #include "Support/TreeSupport.hpp"
@@ -1096,12 +1097,13 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "top_surface_speed") {
             // Brim is printed below supports, support invalidates brim and skirt.
             steps.emplace_back(posSupportMaterial);
-            if (opt_key == "brim_type") {
-                const auto* old_brim_type = old_config.option<ConfigOptionEnum<BrimType>>(opt_key);
-                const auto* new_brim_type = new_config.option<ConfigOptionEnum<BrimType>>(opt_key);
-                //BBS: When switch to manual brim, the object must have brim, then re-generate perimeter
-                //to make the wall order of first layer to be outer-first
-                if (old_brim_type->value == btOuterOnly || new_brim_type->value == btOuterOnly)
+            if (opt_key == "brim_type" || opt_key == "brim_width") {
+                // Regenerate the walls when the brim starts or stops putting the first layer's outer walls first.
+                auto outer_walls_first = [](const ConfigOptionResolver &config) {
+                    return brim_puts_outer_walls_first(config.option<ConfigOptionEnum<BrimType>>("brim_type")->value,
+                                                       config.option<ConfigOptionFloat>("brim_width")->value);
+                };
+                if (outer_walls_first(old_config) != outer_walls_first(new_config))
                     steps.emplace_back(posPerimeters);
             }
         } else if (
@@ -2173,6 +2175,27 @@ void PrintObject::discover_shell_for_perimeters()
 }
 // This method applies bridge flow to the first internal solid layer above sparse infill.
 // This method applies bridge flow to the first internal solid layer above sparse infill.
+// From OrcaSlicer: whether a fill surface prints at full density, by the density Fill.cpp gives its type, once
+// bridge_over_infill() and combine_infill() have run.
+static bool prints_dense(const Surface &surface, const PrintRegionConfig &region_config)
+{
+    switch (surface.surface_type) {
+    case stInternal: return region_config.sparse_infill_density.value == 100;
+    case stTop: return region_config.top_surface_density.value == 100;
+    case stBottom: return region_config.bottom_surface_density.value == 100;
+    case stBottomBridge: return region_config.bridge_density.value == 100;
+    case stInternalSolid:
+        // Combining infill leaves voids below the top layer of each group.
+        if (region_config.infill_combination.value)
+            return false;
+        // Where it lies over sparse infill, bridge_over_infill() turns it into an internal bridge.
+        [[fallthrough]];
+    case stInternalBridge:
+        return region_config.bridge_density.value == 100 && region_config.internal_bridge_density.value == 100;
+    default: return false;
+    }
+}
+
 void PrintObject::bridge_over_infill()
 {
     BOOST_LOG_TRIVIAL(info) << "Bridge over infill - Start" << log_memory_info();
@@ -2221,6 +2244,9 @@ void PrintObject::bridge_over_infill()
                     // unsupported area will serve as a filter for polygons worth bridging.
                     Polygons   unsupported_area; // 下一层不提供支撑的区域
                     Polygons   lower_layer_solids;  // 下一层的实心区域，可以提供支撑
+                    // From OrcaSlicer: whether every fill surface of the lower layer prints at full density, which the
+                    // early-out below needs.
+                    bool       dense_below = true;
                     // 取当前层和下一层的数据
                     for (const LayerRegion *region : layer->lower_layer->regions()) {
                         Polygons fill_polys = to_polygons(region->fill_expolygons);
@@ -2231,16 +2257,21 @@ void PrintObject::bridge_over_infill()
                                 Polygons p = to_polygons(surface.expolygon);
                                 lower_layer_solids.insert(lower_layer_solids.end(), p.begin(), p.end());
                             }
+                            dense_below = dense_below && prints_dense(surface, region->region().config());
                         }
                     }
                     unsupported_area = closing(unsupported_area, float(SCALED_EPSILON));
                     // By expanding the lower layer solids, we avoid making bridges from the tiny internal overhangs that are (very likely) supported by previous layer solids
                     // NOTE that we cannot filter out polygons worth bridging by their area, because sometimes there is a very small internal island that will grow into large hole
                     lower_layer_solids = shrink(lower_layer_solids, 1 * spacing); // first remove thin regions that will not support anything
-                    lower_layer_solids = expand(lower_layer_solids, (1 + 3) * spacing); // then expand back (opening), and further for parts supported by internal solids
                     // By shrinking the unsupported area, we avoid making bridges from narrow ensuring region along perimeters.
                     unsupported_area   = shrink(unsupported_area, 3 * spacing);
-                    unsupported_area   = diff(unsupported_area, lower_layer_solids);
+                    // Then expand the solids back (opening), and further for parts supported by internal solids.
+                    // From OrcaSlicer: over a lower layer printed at full density the expansion nearly always covers
+                    // everything, which diff_expanded() proves at a fraction of the cost.
+                    const float reach  = float((1 + 3) * spacing);
+                    unsupported_area   = dense_below ? diff_expanded(unsupported_area, lower_layer_solids, reach) :
+                                                       diff(unsupported_area, expand(lower_layer_solids, reach));
 
                     for (LayerRegion *region : layer->regions()) {
                         auto region_internal_solids =  region->fill_surfaces.filter_by_type(stInternalSolid); // 取当前层的实心区域

@@ -1193,6 +1193,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatsNullable,      deretraction_speed))
     //BBS
     ((ConfigOptionBool,                enable_arc_fitting))
+    // From OrcaSlicer: arc fitting is limited to the sparse infill
+    ((ConfigOptionBool,                arc_fitting_sparse_infill_only))
     ((ConfigOptionString,              machine_end_gcode))
     ((ConfigOptionStrings,             filament_end_gcode))
     ((ConfigOptionFloatsNullable,      filament_flow_ratio))
@@ -1277,6 +1279,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPoints,              thumbnail_size))
     // ((ConfigOptionBool,                spaghetti_detector))
     ((ConfigOptionBool,                gcode_add_line_number))
+    ((ConfigOptionBool,                high_precision_gcode))
     ((ConfigOptionBool,                bbl_bed_temperature_gcode))
     ((ConfigOptionEnum<GCodeFlavor>,   gcode_flavor))
     ((ConfigOptionString,              layer_change_gcode))

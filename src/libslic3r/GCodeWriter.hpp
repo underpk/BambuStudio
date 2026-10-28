@@ -4,6 +4,8 @@
 #include "libslic3r.h"
 #include <string>
 #include <charconv>
+#include <cmath>
+#include <utility>
 #include "Extruder.hpp"
 #include "Point.hpp"
 #include "PrintConfig.hpp"
@@ -125,6 +127,12 @@ public:
     void set_current_position_clear(bool clear) { m_is_current_pos_clear = clear; };
     bool is_current_position_clear() const { return m_is_current_pos_clear; };
     void set_is_bbl_printer(bool is_bbl_printer) { m_is_bbl_printer = is_bbl_printer; };
+    // From OrcaSlicer: whether extrusions, XY travels and retractions are written now with high precision G-code:
+    // high_precision_gcode, unless force_standard_precision() is in effect. Travels that change Z always follow
+    // high_precision_gcode, as the Z they set also holds for the moves after them.
+    bool high_precision() const { return config.high_precision_gcode.value && !m_force_standard_precision; }
+    // Writes the next extrusions, XY travels and retractions with the standard precision. Returns the previous value.
+    bool force_standard_precision(bool force) { return std::exchange(m_force_standard_precision, force); }
     //BBS:
     static const bool full_gcode_comment;
     //Radian threshold of slope for lazy lift and spiral lift;
@@ -153,6 +161,7 @@ private:
     int             m_last_bed_temperature;
     bool            m_last_bed_temperature_reached;
     double          m_lifted;
+    bool            m_force_standard_precision = false;
 
     // BBS
     double          m_to_lift;
@@ -184,7 +193,7 @@ private:
 
 class GCodeFormatter {
 public:
-    GCodeFormatter() {
+    explicit GCodeFormatter(bool high_precision = false) : m_high_precision(high_precision) {
         this->buf_end = buf + buflen;
         this->ptr_err.ptr = this->buf;
     }
@@ -192,42 +201,40 @@ public:
     GCodeFormatter(const GCodeFormatter&) = delete;
     GCodeFormatter& operator=(const GCodeFormatter&) = delete;
 
-    // At layer height 0.15mm, extrusion width 0.2mm and filament diameter 1.75mm,
-    // the crossection of extrusion is 0.4 * 0.15 = 0.06mm2
-    // and the filament crossection is 1.75^2 = 3.063mm2
-    // thus the filament moves 3.063 / 0.6 = 51x slower than the XY axes
+    // At extrusion width 0.4mm and layer height 0.15mm, the cross-section of extrusion is 0.4 * 0.15 = 0.06mm2
+    // and the cross-section of a 1.75mm filament is 2.405mm2,
+    // thus the filament moves 2.405 / 0.06 = 40x slower than the XY axes
     // and we need roughly two decimal digits more on extruder than on XY.
-#if 1
     static constexpr const int XYZF_EXPORT_DIGITS = 3;
     static constexpr const int E_EXPORT_DIGITS    = 5;
-#else
-    // order of magnitude smaller extrusion rate erros
-    static constexpr const int XYZF_EXPORT_DIGITS = 4;
-    static constexpr const int E_EXPORT_DIGITS    = 6;
-    // excessive accuracy
-//    static constexpr const int XYZF_EXPORT_DIGITS = 6;
-//    static constexpr const int E_EXPORT_DIGITS    = 9;
-#endif
+    // From OrcaSlicer: high precision G-code adds one digit to both for an order of magnitude smaller extrusion
+    // rate errors. Feedrate does not benefit from it and keeps three digits.
+    static constexpr int xyz_digits(bool high_precision) { return high_precision ? 4 : 3; }
+    static constexpr int e_digits(bool high_precision) { return high_precision ? 6 : 5; }
+
+    // Quantize doubles to a resolution of the G-code.
+    static double quantize(double v, int ndigits) { const double p = std::pow(10., ndigits); return std::round(v * p) / p; }
+    static double quantize_e(double v, bool high_precision) { return quantize(v, e_digits(high_precision)); }
 
     void emit_axis(const char axis, const double v, size_t digits);
 
     void emit_xy(const Vec2d &point) {
-        this->emit_axis('X', point.x(), XYZF_EXPORT_DIGITS);
-        this->emit_axis('Y', point.y(), XYZF_EXPORT_DIGITS);
+        this->emit_axis('X', point.x(), xyz_digits(m_high_precision));
+        this->emit_axis('Y', point.y(), xyz_digits(m_high_precision));
     }
 
     void emit_xyz(const Vec3d &point) {
-        this->emit_axis('X', point.x(), XYZF_EXPORT_DIGITS);
-        this->emit_axis('Y', point.y(), XYZF_EXPORT_DIGITS);
+        this->emit_axis('X', point.x(), xyz_digits(m_high_precision));
+        this->emit_axis('Y', point.y(), xyz_digits(m_high_precision));
         this->emit_z(point.z());
     }
 
     void emit_z(const double z) {
-        this->emit_axis('Z', z, XYZF_EXPORT_DIGITS);
+        this->emit_axis('Z', z, xyz_digits(m_high_precision));
     }
 
     void emit_e(double v) {
-        this->emit_axis('E', v, E_EXPORT_DIGITS);
+        this->emit_axis('E', v, e_digits(m_high_precision));
     }
 
     void emit_f(double speed) {
@@ -235,8 +242,8 @@ public:
     }
     //BBS
     void emit_ij(const Vec2d &point) {
-        this->emit_axis('I', point.x(), XYZF_EXPORT_DIGITS);
-        this->emit_axis('J', point.y(), XYZF_EXPORT_DIGITS);
+        this->emit_axis('I', point.x(), xyz_digits(m_high_precision));
+        this->emit_axis('J', point.y(), xyz_digits(m_high_precision));
     }
 
     void emit_string(const std::string &s) {
@@ -257,6 +264,7 @@ public:
     }
 
 protected:
+    const bool                      m_high_precision;
     static constexpr const size_t   buflen = 256;
     char                            buf[buflen];
     char* buf_end;
@@ -265,7 +273,7 @@ protected:
 
 class GCodeG1Formatter : public GCodeFormatter {
 public:
-    GCodeG1Formatter() {
+    explicit GCodeG1Formatter(bool high_precision = false) : GCodeFormatter(high_precision) {
         this->buf[0] = 'G';
         this->buf[1] = '1';
         this->buf_end = buf + buflen;
@@ -278,7 +286,7 @@ public:
 
 class GCodeG2G3Formatter : public GCodeFormatter {
 public:
-    GCodeG2G3Formatter(bool is_ccw) {
+    GCodeG2G3Formatter(bool is_ccw, bool high_precision = false) : GCodeFormatter(high_precision) {
         this->buf[0] = 'G';
         this->buf[1] = is_ccw ? '3' : '2';
         this->buf_end = buf + buflen;

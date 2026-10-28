@@ -917,7 +917,7 @@ void PerimeterGenerator::process_classic()
     process_no_bridge(all_surfaces, perimeter_spacing, ext_perimeter_width);
 
     // BBS: don't simplify too much which influence arc fitting when export gcode if arc_fitting is enabled
-    double surface_simplify_resolution = (print_config->enable_arc_fitting && this->config->fuzzy_skin == FuzzySkinType::None) ? 0.2 * m_scaled_resolution : m_scaled_resolution;
+    double surface_simplify_resolution = (print_config->enable_arc_fitting && !print_config->arc_fitting_sparse_infill_only && this->config->fuzzy_skin == FuzzySkinType::None) ? 0.2 * m_scaled_resolution : m_scaled_resolution;
     //BBS: reorder the surface to reduce the travel time
     ExPolygons surface_exp;
     for (const Surface &surface : all_surfaces)
@@ -1260,9 +1260,7 @@ void PerimeterGenerator::process_classic()
                 this->config->wall_sequence == WallSequence::OuterInner;
             if (is_outer_wall_first ||
                 //BBS: always print outer wall first when there indeed has brim.
-                (this->layer_id == 0 &&
-                 this->object_config->brim_type == BrimType::btOuterOnly &&
-                 this->object_config->brim_width.value > 0))
+                this->outer_walls_first_for_brim())
                 entities.reverse();
             //BBS. adjust wall generate seq
             else if (this->config->wall_sequence == WallSequence::InnerOuterInner)
@@ -1507,7 +1505,7 @@ void PerimeterGenerator::process_arachne()
     process_no_bridge(all_surfaces, perimeter_spacing, ext_perimeter_width);
 
     // BBS: don't simplify too much which influence arc fitting when export gcode if arc_fitting is enabled
-    double surface_simplify_resolution = (print_config->enable_arc_fitting && this->config->fuzzy_skin == FuzzySkinType::None) ? 0.2 * m_scaled_resolution : m_scaled_resolution;
+    double surface_simplify_resolution = (print_config->enable_arc_fitting && !print_config->arc_fitting_sparse_infill_only && this->config->fuzzy_skin == FuzzySkinType::None) ? 0.2 * m_scaled_resolution : m_scaled_resolution;
     // we need to process each island separately because we might have different
     // extra perimeters for each one
 
@@ -1670,7 +1668,7 @@ void PerimeterGenerator::process_arachne()
         bool is_outer_wall_first =
             this->config->wall_sequence == WallSequence::OuterInner || this->config->wall_sequence == WallSequence::InnerOuterInner;
         if (layer_id == 0) {
-            is_outer_wall_first = this->config->wall_sequence == WallSequence::OuterInner;
+            is_outer_wall_first = this->config->wall_sequence == WallSequence::OuterInner || this->outer_walls_first_for_brim();
         }
         if (is_outer_wall_first) {
             start_perimeter = 0;
@@ -1848,6 +1846,16 @@ bool PerimeterGeneratorLoop::is_internal_contour() const
         if (loop.is_contour)
             return false;
     return true;
+}
+
+bool PerimeterGenerator::outer_walls_first_for_brim() const
+{
+    return layer_id == 0 && brim_puts_outer_walls_first(object_config->brim_type.value, object_config->brim_width.value);
+}
+
+bool brim_puts_outer_walls_first(BrimType brim_type, double brim_width)
+{
+    return brim_width > 0 && (brim_type == btOuterOnly || brim_type == btOuterAndInner);
 }
 
 std::vector<Polygons> PerimeterGenerator::generate_lower_polygons_series(float width)

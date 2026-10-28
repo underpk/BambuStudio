@@ -2976,6 +2976,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("slice_closing_radius");
         optgroup->append_single_option_line("resolution","acr-move");
         optgroup->append_single_option_line("enable_arc_fitting", "acr-move");
+        optgroup->append_single_option_line("arc_fitting_sparse_infill_only", "acr-move");
         optgroup->append_single_option_line("xy_hole_compensation", "xy-hole-contour-compensation");
         optgroup->append_single_option_line("xy_contour_compensation", "xy-hole-contour-compensation");
         optgroup->append_single_option_line("enable_circle_compensation");
@@ -3274,6 +3275,7 @@ void TabPrint::build()
         optgroup = page->new_optgroup(L("G-code output"), L"param_gcode");
         optgroup->append_single_option_line("reduce_infill_retraction_mode");
         optgroup->append_single_option_line("gcode_add_line_number");
+        optgroup->append_single_option_line("high_precision_gcode");
         optgroup->append_single_option_line("exclude_object");
         Option option = optgroup->get_option("filename_format");
         option.opt.full_width = true;

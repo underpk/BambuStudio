@@ -383,6 +383,8 @@ Polygons extract_perimeter_polygons(const Layer *layer, const SeamPosition confi
     for (const LayerRegion *layer_region : layer->regions()) {
         for (const ExtrusionEntity *ex_entity : layer_region->perimeters.entities) {
             if (ex_entity->is_collection()) { // collection of inner, outer, and overhang perimeters
+                // From OrcaSlicer: the fallback below applies per collection, not per layer.
+                const size_t collection_begin = polygons.size();
                 for (const ExtrusionEntity *perimeter : static_cast<const ExtrusionEntityCollection *>(ex_entity)->entities) {
                     ExtrusionRole role = perimeter->role();
                     if (perimeter->is_loop()) {
@@ -399,7 +401,7 @@ Polygons extract_perimeter_polygons(const Layer *layer, const SeamPosition confi
                         corresponding_regions_out.push_back(layer_region);
                     }
                 }
-                if (polygons.empty()) {
+                if (polygons.size() == collection_begin) {
                     Points p;
                     ex_entity->collect_points(p);
                     polygons.emplace_back(std::move(p));

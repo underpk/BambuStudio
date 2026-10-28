@@ -150,6 +150,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "hot_plate_temp_initial_layer",
         "textured_plate_temp_initial_layer",
         "gcode_add_line_number",
+        "high_precision_gcode",
         "layer_change_gcode",
         "time_lapse_gcode",
         "wrapping_detection_gcode",
@@ -368,6 +369,7 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             //|| opt_key == "resolution"
             //BBS: when enable arc fitting, we must re-generate perimeter
             || opt_key == "enable_arc_fitting"
+            || opt_key == "arc_fitting_sparse_infill_only"
             || opt_key == "wall_sequence"
             || opt_key == "z_direction_outwall_speed_continuous"
             || opt_key == "override_filament_scarf_seam_setting"
