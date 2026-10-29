@@ -627,6 +627,28 @@ void PrintObject::make_perimeters()
         m_print->throw_if_canceled();
         BOOST_LOG_TRIVIAL(debug) << "Recrod cooling_node id for each extrusion in parallel - end";
     }
+
+    // From OrcaSlicer: print unsupported walls last. Done once the cooling nodes above are recorded, as they
+    // follow the position of the loops in their island at the time.
+    const auto regions = this->all_regions();
+    if (std::any_of(regions.begin(), regions.end(),
+                    [](const PrintRegion &region) { return region.config().unsupported_wall_last.value; })) {
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, m_layers.size()), [this](const tbb::blocked_range<size_t> &range) {
+            for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++layer_idx) {
+                m_print->throw_if_canceled();
+                for (LayerRegion *layerm : m_layers[layer_idx]->regions()) {
+                    if (!layerm->region().config().unsupported_wall_last.value)
+                        continue;
+                    const coord_t touch_distance = coord_t(1.5 * std::max(layerm->flow(frExternalPerimeter).scaled_spacing(),
+                                                                           layerm->flow(frPerimeter).scaled_spacing()));
+                    for (ExtrusionEntity *island : layerm->perimeters.entities)
+                        if (auto *coll = dynamic_cast<ExtrusionEntityCollection *>(island))
+                            defer_unsupported_loops(*coll, touch_distance);
+                }
+            }
+        });
+        m_print->throw_if_canceled();
+    }
     this->set_done(posPerimeters);
 }
 
@@ -1308,6 +1330,7 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "fuzzy_skin_persistence"
             || opt_key == "fuzzy_skin_mode"
             || opt_key == "detect_overhang_wall"
+            || opt_key == "unsupported_wall_last"
             //BBS
             || opt_key == "enable_overhang_speed"
             || opt_key == "detect_thin_wall"
@@ -1341,6 +1364,8 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "seam_gap"
             || opt_key == "wipe_speed"
             || opt_key == "role_base_wipe_speed"
+            || opt_key == "wipe_inward"
+            || opt_key == "wipe_inward_distance"
             || opt_key == "support_speed"
             || opt_key == "support_interface_speed"
             || opt_key == "smooth_speed_discontinuity_area"

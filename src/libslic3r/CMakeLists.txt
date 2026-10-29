@@ -185,6 +185,8 @@ set(lisbslic3r_sources
     GCode/RetractWhenCrossingPerimeters.hpp
     GCode/SpiralVase.cpp
     GCode/SpiralVase.hpp
+    GCode/WipePathHelpers.cpp
+    GCode/WipePathHelpers.hpp
     GCode/SeamPlacer.cpp
     GCode/SeamPlacer.hpp
     GCode/ToolOrdering.cpp

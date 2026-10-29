@@ -180,6 +180,7 @@ bool Layer::has_compatible_layer_regions(const PrintRegionConfig &config, const 
            && config.gap_infill_speed.get_at(get_process_config_idx(config.wall_filament)) == other_config.gap_infill_speed.get_at(get_process_config_idx(config.wall_filament))
            && config.bridge_speed.get_at(get_process_config_idx(config.wall_filament)) == other_config.bridge_speed.get_at(get_process_config_idx(config.wall_filament))
            && config.detect_overhang_wall == other_config.detect_overhang_wall
+           && config.unsupported_wall_last == other_config.unsupported_wall_last
            && config.filter_out_gap_fill.value == other_config.filter_out_gap_fill.value
            && config.opt_serialize("inner_wall_line_width") == other_config.opt_serialize("inner_wall_line_width")
            && config.opt_serialize("outer_wall_line_width") == other_config.opt_serialize("outer_wall_line_width")

@@ -133,6 +133,13 @@ private:
 // so the brim runs straight on into the outer wall. Auto, ear and painted brims may leave the outer walls bare.
 bool brim_puts_outer_walls_first(BrimType brim_type, double brim_width);
 
+class ExtrusionEntityCollection;
+// From OrcaSlicer: a wall loop with nothing under it has nothing to lean on, so whatever the wall sequence it is
+// moved after the other loops of its island, innermost first. A loop that runs within touch_distance of an anchored
+// one belongs to the same wall stack and keeps its place ahead of the infill, which needs it as an anchor; one that
+// touches nothing has only that infill to rest on, so it is flagged print_after_infill for the G-code writer.
+void defer_unsupported_loops(ExtrusionEntityCollection &island, coord_t touch_distance);
+
 }
 
 #endif

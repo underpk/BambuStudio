@@ -1,6 +1,7 @@
 #include "libslic3r.h"
 #include "I18N.hpp"
 #include "GCode.hpp"
+#include "GCode/WipePathHelpers.hpp"
 #include "Exception.hpp"
 #include "ExtrusionEntity.hpp"
 #include "EdgeGrid.hpp"
@@ -5387,7 +5388,7 @@ GCode::LayerResult GCode::process_layer(
                         gcode += this->extrude_infill(print, by_region_specific, false);
                         gcode += this->extrude_perimeters(print, by_region_specific);
                     } else {
-                        gcode += this->extrude_perimeters(print, by_region_specific);
+                        gcode += this->extrude_perimeters(print, by_region_specific, PerimeterPass::BeforeInfill);
                         if (!has_wipe_tower && need_insert_timelapse_gcode_for_traditional && printer_structure == PrinterStructure::psI3
                             && !has_insert_timelapse_gcode && has_infill(by_region_specific)) {
                             gcode += this->retract(false, false, auto_lift_type, true);
@@ -5406,6 +5407,7 @@ GCode::LayerResult GCode::process_layer(
                             has_insert_timelapse_gcode = true;
                         }
                         gcode += this->extrude_infill(print,by_region_specific, false);
+                        gcode += this->extrude_perimeters(print, by_region_specific, PerimeterPass::AfterInfill);
                     }
                     // ironing
                     gcode += this->extrude_infill(print,by_region_specific, true);
@@ -5672,7 +5674,7 @@ GCode::LayerResult GCode::process_layer(
                             gcode += this->extrude_infill(print, by_region_specific, false);
                             gcode += this->extrude_perimeters(print, by_region_specific);
                         } else {
-                            gcode += this->extrude_perimeters(print, by_region_specific);
+                            gcode += this->extrude_perimeters(print, by_region_specific, PerimeterPass::BeforeInfill);
                             if (!has_wipe_tower && need_insert_timelapse_gcode_for_traditional
                                 && printer_structure == PrinterStructure::psI3
                                 && !has_insert_timelapse_gcode && has_infill(by_region_specific)) {
@@ -5681,6 +5683,7 @@ GCode::LayerResult GCode::process_layer(
                                 has_insert_timelapse_gcode = true;
                             }
                             gcode += this->extrude_infill(print, by_region_specific, false);
+                            gcode += this->extrude_perimeters(print, by_region_specific, PerimeterPass::AfterInfill);
                         }
                         gcode += this->extrude_infill(print, by_region_specific, true);
                     }
@@ -6070,7 +6073,7 @@ double GCode::get_path_speed(const ExtrusionPath &path)
     return speed;
 }
 
-std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed)
+std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed, const WipeInwardSupport *wipe_support)
 {
     // get a copy; don't modify the orientation of the original loop object otherwise
     // next copies (if any) would not detect the correct orientation
@@ -6244,6 +6247,37 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
             else
                 m_wipe.path.append(path.polyline);  // TODO: don't limit wipe to last path
         }
+
+        // From OrcaSlicer: wipe inward. After an external wall, shift the stored wipe path toward the inner walls
+        // printed before it, so the retraction wipe runs over printed material instead of along the outer surface.
+        // Retraction and pressure advance calibrations keep the regular wipe, which they measure.
+        const CalibMode calib_mode = m_print->calib_mode();
+        const bool      calibrating_wipe = calib_mode == CalibMode::Calib_PA_Line || calib_mode == CalibMode::Calib_PA_Pattern ||
+                                           calib_mode == CalibMode::Calib_PA_Tower || calib_mode == CalibMode::Calib_Auto_PA_Line ||
+                                           calib_mode == CalibMode::Calib_Retraction_tower;
+        if (m_config.wipe_inward && m_config.wipe_inward_distance.value > 0. && !calibrating_wipe &&
+            wipe_support != nullptr && !wipe_support->inner_lines.empty() && m_wipe.path.points.size() >= 2 &&
+            // A loop's role is its first path's role. An overhanging start must not hide the external wall.
+            std::any_of(paths.begin(), paths.end(), [](const ExtrusionPath &path) { return path.role() == erExternalPerimeter; })) {
+            // The actual extrusion width, as the configured one may be 0 (auto) and Arachne varies it.
+            const double outer_wall_line_width = paths.front().width;
+            const double nozzle_diameter       = EXTRUDER_CONFIG(nozzle_diameter);
+            const double offset_dist = scale_(std::min(m_config.wipe_inward_distance.get_abs_value(outer_wall_line_width), outer_wall_line_width));
+            if (offset_dist > SCALED_EPSILON) {
+                // Loops are printed counter-clockwise unless print_in_clockwise, holes included.
+                const bool  is_ccw     = !m_config.print_in_clockwise;
+                const Point seam_start = paths.front().first_point();
+                const Point seam_end   = paths.back().last_point();
+                // Wipe::wipe() replaces points[0] with the nozzle position and runs from points[1]; the helper keeps
+                // that convention and replaces the path only when a supported inward path is found.
+                Polyline inward_path = m_wipe.path;
+                if (offset_wipe_path_toward_support(inward_path, seam_start, seam_end, seam_end, wipe_offset_direction(is_ccw, is_hole),
+                                                    offset_dist, scale_(FILAMENT_CONFIG(wipe_distance)), wipe_support->inner_lines,
+                                                    wipe_support->printed_lines, m_wipe.path.lines(),
+                                                    scale_(std::max(nozzle_diameter, outer_wall_line_width))))
+                    m_wipe.path = std::move(inward_path);
+            }
+        }
     }
 
     //BBS. move the travel path before wipe to improve the seam
@@ -6319,14 +6353,14 @@ std::string GCode::extrude_multi_path(ExtrusionMultiPath multipath, std::string 
     return gcode;
 }
 
-std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed)
+std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed, const WipeInwardSupport *wipe_support)
 {
     if (const ExtrusionPath* path = dynamic_cast<const ExtrusionPath*>(&entity))
         return this->extrude_path(*path, description, speed);
     else if (const ExtrusionMultiPath* multipath = dynamic_cast<const ExtrusionMultiPath*>(&entity))
         return this->extrude_multi_path(*multipath, description, speed);
     else if (const ExtrusionLoop* loop = dynamic_cast<const ExtrusionLoop*>(&entity))
-        return this->extrude_loop(*loop, description, speed);
+        return this->extrude_loop(*loop, description, speed, wipe_support);
     else
         throw Slic3r::InvalidArgument("Invalid argument supplied to extrude()");
     return "";
@@ -6364,24 +6398,43 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
 }
 
 // Extrude perimeters: Decide where to put seams (hide or align seams).
-std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region)
+std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, PerimeterPass pass)
 {
     std::string gcode;
     for (const ObjectByExtruder::Island::Region &region : by_region)
         if (! region.perimeters.empty()) {
             m_config.apply(print.get_print_region(&region - &by_region.front()).config());
 
+            auto after_infill = [](const ExtrusionEntity *ee) {
+                return ee->is_loop() && static_cast<const ExtrusionLoop *>(ee)->print_after_infill;
+            };
+            // From OrcaSlicer: the walls of this region printed so far, in print order, for wipe inward.
+            std::optional<WipeInwardSupport> wipe_support;
+            if (m_wipe.enable && FILAMENT_CONFIG(wipe) && m_config.wipe_inward && m_config.wipe_inward_distance.value > 0. &&
+                scale_(FILAMENT_CONFIG(wipe_distance)) > SCALED_EPSILON) {
+                wipe_support.emplace();
+                // The walls held back for the infill come after the others, which are already down.
+                if (pass == PerimeterPass::AfterInfill)
+                    for (const ExtrusionEntity *ee : region.perimeters)
+                        if (!after_infill(ee))
+                            wipe_support->append(*ee);
+            }
+
             // BBS: output merged node id
             int curr_node=0;
             int cooling_node = -1;
             for (size_t perimeter_idx = 0; perimeter_idx < region.perimeters.size(); ++perimeter_idx) {
                 const ExtrusionEntity *ee = region.perimeters[perimeter_idx];
+                if (pass != PerimeterPass::All && after_infill(ee) != (pass == PerimeterPass::AfterInfill))
+                    continue;
                 int ee_node_id = ee->get_cooling_node();
                 if (ee_node_id != cooling_node) {
                     gcode += "; COOLING_NODE: " + std::to_string(ee_node_id) + "\n";
                 }
 
-                gcode += this->extrude_entity(*ee, "perimeter", -1.);
+                gcode += this->extrude_entity(*ee, "perimeter", -1., wipe_support ? &*wipe_support : nullptr);
+                if (wipe_support)
+                    wipe_support->append(*ee);
             }
         }
     return gcode;

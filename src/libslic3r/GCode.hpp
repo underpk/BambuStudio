@@ -36,6 +36,7 @@ namespace Slic3r {
 
 // Forward declarations.
 class GCode;
+struct WipeInwardSupport;
 
 namespace { struct Item; }
 struct PrintInstance;
@@ -403,8 +404,11 @@ private:
     std::string     preamble();
     // BBS
     std::string     change_layer(coordf_t print_z);
-    std::string     extrude_entity(const ExtrusionEntity &entity, std::string description = "", double speed = -1.);
-    std::string     extrude_loop(ExtrusionLoop loop, std::string description, double speed = -1.);
+    // wipe_support: walls printed so far in the region, for wipe inward, see WipeInwardSupport.
+    std::string     extrude_entity(const ExtrusionEntity &entity, std::string description = "", double speed = -1.,
+                                   const WipeInwardSupport *wipe_support = nullptr);
+    std::string     extrude_loop(ExtrusionLoop loop, std::string description, double speed = -1.,
+                                 const WipeInwardSupport *wipe_support = nullptr);
     std::string     extrude_multi_path(ExtrusionMultiPath multipath, std::string description = "", double speed = -1.);
     std::string     extrude_path(ExtrusionPath path, std::string description = "", double speed = -1.);
 
@@ -485,7 +489,9 @@ private:
 		// For sequential print, the instance of the object to be printing has to be defined.
 		const size_t                     				 single_object_instance_idx);
 
-    std::string     extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region);
+    // From OrcaSlicer: which loops extrude_perimeters() writes, see ExtrusionLoop::print_after_infill.
+    enum class PerimeterPass { All, BeforeInfill, AfterInfill };
+    std::string     extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, PerimeterPass pass = PerimeterPass::All);
     std::string     extrude_infill(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, bool ironing);
     std::string     extrude_support(const ExtrusionEntityCollection &support_fills);
 

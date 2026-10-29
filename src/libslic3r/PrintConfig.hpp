@@ -1013,6 +1013,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPercent,            seam_gap))
     ((ConfigOptionPercent,            wipe_speed))
     ((ConfigOptionBool,               role_base_wipe_speed))
+    ((ConfigOptionBool,               wipe_inward))
+    ((ConfigOptionFloatOrPercent,     wipe_inward_distance))
     ((ConfigOptionBool,               precise_z_height)) // BBS
 
     ((ConfigOptionBool, interlocking_beam))
@@ -1090,6 +1092,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat, ironing_speed))
     // Detect bridging perimeters
     ((ConfigOptionBool, detect_overhang_wall))
+    ((ConfigOptionBool, unsupported_wall_last))
     ((ConfigOptionBool, smooth_speed_discontinuity_area))
     ((ConfigOptionFloat, smooth_coefficient))
     ((ConfigOptionInt, wall_filament))

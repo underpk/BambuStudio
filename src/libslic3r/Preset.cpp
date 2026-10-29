@@ -1013,7 +1013,7 @@ bool Preset::has_cali_lines(PresetBundle* preset_bundle)
 static std::vector<std::string> s_Preset_print_options {
     "layer_height", "initial_layer_print_height", "wall_loops", "slice_closing_radius", "spiral_mode", "spiral_mode_smooth", "spiral_mode_max_xy_smoothing", "slicing_mode",
     "top_shell_layers", "top_shell_thickness", "bottom_shell_layers", "bottom_shell_thickness", "ensure_vertical_shell_thickness", "reduce_crossing_wall", "detect_thin_wall",
-    "detect_overhang_wall", "top_color_penetration_layers", "bottom_color_penetration_layers",
+    "detect_overhang_wall", "unsupported_wall_last", "top_color_penetration_layers", "bottom_color_penetration_layers",
     "infill_instead_top_bottom_surfaces",
     "smooth_speed_discontinuity_area","smooth_coefficient", "seam_position", "seam_placement_away_from_overhangs", "wall_sequence", "is_infill_first", "sparse_infill_density", "fill_multiline",
     "sparse_infill_pattern", "sparse_infill_anchor", "sparse_infill_anchor_max", "top_surface_pattern", "monotonic_travel_into_wall",
@@ -1080,7 +1080,7 @@ static std::vector<std::string> s_Preset_print_options {
     //Orca
     "exclude_object", "override_filament_scarf_seam_setting", "seam_slope_type", "seam_slope_conditional", "scarf_angle_threshold",
     "seam_slope_start_height", "seam_slope_entire_loop", "seam_slope_min_length",
-    "seam_slope_steps", "seam_slope_inner_walls", "role_base_wipe_speed", "seam_slope_gap", "precise_outer_wall",
+    "seam_slope_steps", "seam_slope_inner_walls", "role_base_wipe_speed", "wipe_inward", "wipe_inward_distance", "seam_slope_gap", "precise_outer_wall",
     "interlocking_beam", "interlocking_orientation", "interlocking_beam_layer_count", "interlocking_depth", "interlocking_boundary_avoidance", "interlocking_beam_width", "embedding_wall_into_infill",
     "alternate_extra_wall" };
 

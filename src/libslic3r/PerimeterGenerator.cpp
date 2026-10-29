@@ -11,6 +11,7 @@
 #include "Arachne/WallToolPaths.hpp"
 #include "Line.hpp"
 #include "Layer.hpp"
+#include "AABBTreeLines.hpp"
 #include <cmath>
 #include <cassert>
 #include <random>
@@ -456,7 +457,9 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
             path.set_customize_flag(flag);
         }
 
-        coll.append(ExtrusionLoop(std::move(paths), loop_role, flag));
+        ExtrusionLoop extrusion_loop(std::move(paths), loop_role, flag);
+        extrusion_loop.inset_idx = loop.depth;
+        coll.append(std::move(extrusion_loop));
     }
 
     // Append thin walls to the nearest-neighbor search (only for first iteration)
@@ -781,6 +784,7 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
         if (!paths.empty()) {
             if (extrusion->is_closed) {
                 ExtrusionLoop extrusion_loop(std::move(paths), extrusion->is_contour()? elrDefault : elrPerimeterHole);
+                extrusion_loop.inset_idx = int(extrusion->inset_idx);
                 // Restore the orientation of the extrusion loop.
                 if (pg_extrusion.is_contour)
                     extrusion_loop.make_counter_clockwise();
@@ -1846,6 +1850,65 @@ bool PerimeterGeneratorLoop::is_internal_contour() const
         if (loop.is_contour)
             return false;
     return true;
+}
+
+// A loop made of nothing but overhang paths lies entirely off the lower layer.
+static bool is_unsupported_loop(const ExtrusionEntity *entity)
+{
+    if (!entity->is_loop())
+        return false;
+    const ExtrusionPaths &paths = static_cast<const ExtrusionLoop *>(entity)->paths;
+    return !paths.empty() && std::all_of(paths.begin(), paths.end(),
+                                         [](const ExtrusionPath &path) { return path.role() == erOverhangPerimeter; });
+}
+
+void defer_unsupported_loops(ExtrusionEntityCollection &island, coord_t touch_distance)
+{
+    ExtrusionEntitiesPtr &src = island.entities;
+    auto first_deferred = std::stable_partition(src.begin(), src.end(),
+                                                [](const ExtrusionEntity *entity) { return !is_unsupported_loop(entity); });
+    if (first_deferred == src.end())
+        return;
+
+    std::stable_sort(first_deferred, src.end(), [](const ExtrusionEntity *lhs, const ExtrusionEntity *rhs) {
+        return static_cast<const ExtrusionLoop *>(lhs)->inset_idx > static_cast<const ExtrusionLoop *>(rhs)->inset_idx;
+    });
+
+    auto collect_lines = [](const ExtrusionEntity *entity, Lines &out) {
+        Polylines polylines;
+        entity->collect_polylines(polylines);
+        append(out, to_lines(polylines));
+    };
+
+    Lines anchored;
+    for (auto it = src.begin(); it != first_deferred; ++it)
+        collect_lines(*it, anchored);
+
+    std::vector<ExtrusionLoop *> unattached;
+    for (auto it = first_deferred; it != src.end(); ++it)
+        unattached.emplace_back(static_cast<ExtrusionLoop *>(*it));
+
+    // A loop leaning on a loop that is itself anchored is anchored as well, so spread outwards from
+    // the anchored loops until no unsupported loop is left touching what was reached.
+    while (!anchored.empty()) {
+        AABBTreeLines::LinesDistancer<Line> distancer{std::move(anchored)};
+        anchored.clear();
+        for (ExtrusionLoop *&loop : unattached) {
+            if (loop == nullptr)
+                continue;
+            const Points points = loop->as_polyline().points;
+            if (std::any_of(points.begin(), points.end(), [&distancer, touch_distance](const Point &point) {
+                    return distancer.distance_from_lines<false>(point) < touch_distance;
+                })) {
+                collect_lines(loop, anchored);
+                loop = nullptr;
+            }
+        }
+    }
+
+    for (ExtrusionLoop *loop : unattached)
+        if (loop != nullptr)
+            loop->print_after_infill = true;
 }
 
 bool PerimeterGenerator::outer_walls_first_for_brim() const

@@ -4385,6 +4385,17 @@ void PrintConfigDef::init_fff_params()
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionBool(true));
 
+    // From OrcaSlicer
+    def = this->add("unsupported_wall_last", coBool);
+    def->label = L("Print unsupported walls last");
+    def->category = L("Quality");
+    def->tooltip = L("Wall loops that lie entirely in mid air are printed once something can hold them:\n"
+                     "they are extruded after the other walls of their island, innermost first, whatever the wall order is.\n"
+                     "A loop that only the bridges of this layer can anchor waits until those bridges are printed, while a loop running "
+                     "alongside a supported wall keeps its place before the infill, which needs it as an anchor.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("smooth_speed_discontinuity_area", coBool);
     def->label = L("Smooth speed discontinuity area");
     def->category = L("Quality");
@@ -5019,6 +5030,36 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The wipe speed is determined by speed of current extrusion role. " "e.g if a wipe action is executed immediately following an outer wall extrusion, the speed of the outer wall extrusion will be utilized for the wipe action.");
     def->mode    = comAdvanced;
     def->set_default_value(new ConfigOptionBool(true));
+
+    // From OrcaSlicer
+    def = this->add("wipe_inward", coBool);
+    def->label = L("Wipe inward");
+    def->category = L("Quality");
+    def->tooltip = L("Applies only to external walls, including hole boundaries. Moves the hot nozzle toward printed "
+                     "inner walls during wiping to reduce reheating of freshly printed plastic and seam marks.\n\n"
+                     "Especially useful at layer heights below 0.1 mm, where wipe marks are more visible.\n\n"
+                     "Uses the regular wipe if no adjacent inner wall is already printed (single-wall areas or "
+                     "Outer/Inner wall order), or if no supported inward path can be found, for example at tight "
+                     "corners or seam gaps. Requires Wipe while retracting in the filament settings.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("wipe_inward_distance", coFloatOrPercent);
+    def->label = L("Wipe inward distance");
+    def->category = L("Quality");
+    def->tooltip = L("The distance the wipe path is shifted away from the external perimeter, specified in millimeters "
+                     "or as a percentage of the actual outer-wall extrusion width.\n\n"
+                     "For example, 50% shifts the path by half of the outer-wall width. The effective offset is limited "
+                     "by both the actual outer-wall width and the available spacing to the adjacent wall, so values "
+                     "above 100% or an equivalent absolute distance have no additional effect. "
+                     "Set to 0 to disable the offset.");
+    def->sidetext = L("mm or %");
+    def->ratio_over = "outer_wall_line_width";
+    def->min = 0;
+    def->max = 100;
+    def->max_literal = 2; // G-code generation also clamps literal values to the actual outer-wall width.
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(50, true));
 
     def = this->add("skirt_distance", coFloat);
     def->label = L("Skirt distance");

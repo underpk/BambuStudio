@@ -346,7 +346,8 @@ public:
 
     std::vector<size_t> all_lines_in_radius(const Vec<2, typename LineType::Scalar> &point, Floating radius)
     {
-        return all_lines_in_radius(this->lines, this->tree, point, radius * radius);
+        // Qualified, as the unqualified name finds this member function.
+        return AABBTreeLines::all_lines_in_radius(this->lines, this->tree, point, radius * radius);
     }
 
     template<bool sorted> std::vector<std::pair<Vec<2, Scalar>, size_t>> intersections_with_line(const LineType &line) const

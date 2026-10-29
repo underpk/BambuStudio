@@ -861,6 +861,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, in
                     "seam_position","seam_placement_away_from_overhangs","seam_gap","wipe_speed", "wall_sequence", "outer_wall_line_width",
                     "inner_wall_speed", "outer_wall_speed","small_perimeter_speed", "small_perimeter_threshold" })
         toggle_field(el, have_perimeters);
+    toggle_line("unsupported_wall_last", have_perimeters && config->opt_bool("detect_overhang_wall"));
+    toggle_field("wipe_inward", have_perimeters);
+    toggle_line("wipe_inward_distance", have_perimeters && config->opt_bool("wipe_inward"));
 
     SeamPosition seam_pos = config->option<ConfigOptionEnum<SeamPosition>>("seam_position")->value;
     toggle_line("seam_placement_away_from_overhangs", seam_pos == SeamPosition::spAligned || seam_pos == SeamPosition::spRear);

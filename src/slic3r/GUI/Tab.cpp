@@ -2971,6 +2971,8 @@ void TabPrint::build()
         optgroup->append_single_option_line("seam_slope_min_length", "Seam");
         optgroup->append_single_option_line("wipe_speed", "Seam");
         optgroup->append_single_option_line("role_base_wipe_speed", "Seam");
+        optgroup->append_single_option_line("wipe_inward", "Seam");
+        optgroup->append_single_option_line("wipe_inward_distance", "Seam");
 
         optgroup = page->new_optgroup(L("Precision"), L"param_precision");
         optgroup->append_single_option_line("slice_closing_radius");
@@ -3019,6 +3021,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("top_area_threshold","parameter/quality-advance-settings");
         optgroup->append_single_option_line("only_one_wall_first_layer","parameter/quality-advance-settings");
         optgroup->append_single_option_line("detect_overhang_wall","parameter/quality-advance-settings");
+        optgroup->append_single_option_line("unsupported_wall_last","parameter/quality-advance-settings");
         optgroup->append_single_option_line("smooth_speed_discontinuity_area","parameter/quality-advance-settings");
         optgroup->append_single_option_line("smooth_coefficient","parameter/quality-advance-settings");
         optgroup->append_single_option_line("reduce_crossing_wall","parameter/quality-advance-settings");

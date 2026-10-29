@@ -535,6 +535,13 @@ public:
     ExtrusionRole role() const override { return this->paths.empty() ? erNone : this->paths.front().role(); }
     ExtrusionLoopRole loop_role() const { return m_loop_role; }
     void set_loop_role(ExtrusionLoopRole role) {    m_loop_role = role; }
+
+    // From OrcaSlicer: wall index of the loop, 0 for the outer wall, -1 if unknown.
+    int  inset_idx          = -1;
+    // From OrcaSlicer: set on a loop extruded entirely in mid air and out of reach of the walls anchored on the layer
+    // below. It has nothing to lean on until this layer is bridged, so the G-code writer holds it back until the
+    // infill is down. See defer_unsupported_loops().
+    bool print_after_infill = false;
     // Produce a list of 2D polygons covered by the extruded paths, offsetted by the extrusion width.
     // Increase the offset by scaled_epsilon to achieve an overlap, so a union will produce no gaps.
     void polygons_covered_by_width(Polygons &out, const float scaled_epsilon) const override;
